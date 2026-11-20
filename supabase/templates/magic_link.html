@@ -1,0 +1,7 @@
+<!-- Lokalni predložak (config.toml [auth.email.template.magic_link]); produkcijski je u Supabase dashboardu.
+     Nosi i link (domovina.ai) i kod (prijava organizatora na ulaznice.domovina.ai upisuje kod). -->
+<h2>Prijava na Domovina račun</h2>
+<p>Tvoj kod za prijavu:</p>
+<p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p>
+<p>Kod vrijedi kratko i može se iskoristiti samo jednom.</p>
+<p>Ili se prijavi klikom: <a href="{{ .ConfirmationURL }}">Prijavi se</a></p>

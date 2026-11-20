@@ -51,6 +51,13 @@ enable_signup = true
 # korisnik. Vidi docs/sponzorski-trenuci-zakljucak.md §7.
 enable_anonymous_sign_ins = false
 
+# Lokalni predložak maila za prijavu: uz link nosi i 6-znamenkasti kod ({{ .Token }}),
+# koji upisuje prijava organizatora na ulaznice (POST /auth/v1/verify, type=email).
+# Kod se vidi u Mailpitu (:55324). Produkcijski predložak je u Supabase dashboardu.
+[auth.email.template.magic_link]
+subject = "Kod za prijavu"
+content_path = "./supabase/templates/magic_link.html"
+
 # Google login provider (GoTrue-native OAuth). Odvojen od youtube-claim Google
 # clienta (Princip D — vidi supabase/functions/.env). client_id/secret se
 # interpoliraju iz env-a pri `supabase start` (CLI godotenv: cwd `.env` +
