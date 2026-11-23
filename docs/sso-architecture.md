@@ -121,17 +121,30 @@ RLS uvijek `auth.uid() = user_id`.
 
 ## Redirect URL allowlist
 
-`ADDITIONAL_REDIRECT_URLS` (env var) mora pokrivati sve aplikacije:
+`ADDITIONAL_REDIRECT_URLS` (Coolify env; compose iz njega izvodi
+`GOTRUE_URI_ALLOW_LIST`) mora pokrivati sve aplikacije. Stanje na produkciji
+23. 11. 2026. (26 unosa; mijenja se s `coolify-env-set.sh
+ADDITIONAL_REDIRECT_URLS=<cijeli popis> -y --recreate-service=supabase-auth`,
+vrijednost je cijeli popis, ne dodatak):
 
 ```
-https://domovina.ai/**,
-https://www.domovina.ai/**,
-https://domovina.energy/**,
-https://www.domovina.energy/**,
-https://domovina.tv/**,
-https://www.domovina.tv/**,
-http://localhost:3000/**,
-http://localhost:5173/**
+https://domovina.ai/**              https://www.domovina.ai/**
+https://domovina.energy/**          https://www.domovina.energy/**
+https://domovina.tv/**              https://www.domovina.tv/**
+ai.domovina://auth/callback
+https://pinka-app.pages.dev/**      https://pinka.finance/**
+https://www.pinka.finance/**        https://app.pinka.finance/**
+https://pinka.io/**                 https://www.pinka.io/**
+https://rodjendaonice.domovina.ai/**
+https://tehnoetika.domovina.ai/**   https://tehnoetika-app.d-o-m.workers.dev/**
+https://tehnoetika.com/**           https://www.tehnoetika.com/**
+com.podcasterium://auth/callback    https://podcasterium.com/auth/callback
+https://ulaznice.domovina.ai/**     https://ulaznice-staging.domovina.ai/**   (23. 11. 2026, Google prijava ulaznica)
+http://localhost:3000/**  http://localhost:5173/**  http://localhost:5181/**  http://localhost:8787/**
 ```
+
+Origin koji nije na popisu ne dobije grešku: GoTrue nakon prijave tiho vrati
+na `GOTRUE_SITE_URL` (`https://domovina.ai`). Trenutni popis:
+`docker exec supabase-auth-<id> printenv GOTRUE_URI_ALLOW_LIST`.
 
 Kad dodajemo novu domovina.* aplikaciju, update env var → redeploy GoTrue (Coolify "Restart" je dovoljan).
