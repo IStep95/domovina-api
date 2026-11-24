@@ -12,10 +12,10 @@ import { corsHeaders } from "../_shared/cors.ts";
 // publish_event je DEFINER s eksplicitnim admin + allowlist + Safe gatingom.
 // verify_jwt=false jer getUser radimo interno (obrazac handoff-consume).
 //
-// Galerija i alt naslovne (2026-11-24, editor u domovina-ulaznice web/): create
-// i update primaju `cover_image_alt` i `gallery` ([{url, alt?}], ≤ 20). RPC-ovi
-// se zbog njih ne mijenjaju (isti razlog kao u migracijama venue_geo i
-// events_gallery: novi potpis = drop + ponovni grant); funkcija ih nakon RPC-a
+// Galerija (2026-11-24, editor u domovina-ulaznice web/): create i update
+// primaju `gallery` ([{url}], ≤ 20; alt tekst editor ne šalje). RPC-ovi se
+// zbog nje ne mijenjaju (isti razlog kao u migracijama venue_geo i
+// events_gallery: novi potpis = drop + ponovni grant); funkcija je nakon RPC-a
 // upiše izravnim `update pinka_finance.events` korisnikovim klijentom, pa RLS
 // `events_write` (admin računa) i check `events_gallery_shape` i dalje vrijede.
 // Oblik se provjerava PRIJE RPC-a, da loša galerija ne ostavi napola spremljen događaj.
@@ -154,34 +154,23 @@ Deno.serve(async (req) => {
   }
 });
 
-// ── galerija i alt naslovne ─────────────────────────────────────────────────
+// ── galerija ────────────────────────────────────────────────────────────────
 // Ista pravila kao cover_image_url (https, ≤ 1000) i kao check u bazi (≤ 20
-// stavki, alt ≤ 300). Ključ koji nije poslan se ne dira; prazan alt / prazna
-// lista brišu.
+// stavki). Ključ koji nije poslan se ne dira; prazna lista briše.
 
-type Media = { cover_image_alt?: string | null; gallery?: Array<{ url: string; alt?: string }> };
+type Media = { gallery?: Array<{ url: string }> };
 
 const MAX_GALLERY = 20;
 
 function parseMedia(body: Json): Media | { error: string } {
   const media: Media = {};
-  if ("cover_image_alt" in body && body.cover_image_alt !== null) {
-    if (typeof body.cover_image_alt !== "string") return { error: "invalid_cover_alt" };
-    const alt = body.cover_image_alt.trim();
-    if (alt.length > 300) return { error: "invalid_cover_alt" };
-    media.cover_image_alt = alt || null;
-  }
   if ("gallery" in body && body.gallery !== null) {
     if (!Array.isArray(body.gallery) || body.gallery.length > MAX_GALLERY) return { error: "invalid_gallery" };
-    const gallery: Array<{ url: string; alt?: string }> = [];
+    const gallery: Array<{ url: string }> = [];
     for (const item of body.gallery) {
-      const s = (item && typeof item === "object" ? item : {}) as Json;
-      const url = str(s.url).trim();
+      const url = str((item && typeof item === "object" ? (item as Json) : {}).url).trim();
       if (!/^https:\/\/\S+$/i.test(url) || url.length > 1000) return { error: "invalid_gallery_url" };
-      if (s.alt !== undefined && s.alt !== null && typeof s.alt !== "string") return { error: "invalid_gallery" };
-      const alt = str(s.alt).trim();
-      if (alt.length > 300) return { error: "invalid_gallery" };
-      gallery.push(alt ? { url, alt } : { url });
+      gallery.push({ url });
     }
     media.gallery = gallery;
   }
