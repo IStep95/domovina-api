@@ -19,6 +19,11 @@ import { corsHeaders } from "../_shared/cors.ts";
 // upiše izravnim `update pinka_finance.events` korisnikovim klijentom, pa RLS
 // `events_write` (admin računa) i check `events_gallery_shape` i dalje vrijede.
 // Oblik se provjerava PRIJE RPC-a, da loša galerija ne ostavi napola spremljen događaj.
+//
+// Uređivanje i brisanje skice (2026-11-24): update prima `remove_tier_ids`
+// (vrste ulaznica koje je organizator maknuo u editoru); brišu se samo dok je
+// događaj skica, korisnikovim klijentom (RLS `tiers_write`, admin računa).
+// `delete` zove `delete_event_draft` (DEFINER: admin, samo skica bez narudžbi).
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -53,6 +58,15 @@ Deno.serve(async (req) => {
   const action = typeof body.action === "string" ? body.action : "";
   const rpc = (name: string, args: Json) =>
     userClient.schema("pinka_finance").rpc(name, args);
+  // Samo skica: objavljenom događaju kupci su kupovali pod tim vrstama.
+  const removeDraftTiers = async (campaignId: string, ids: string[]): Promise<string | null> => {
+    const fin = userClient.schema("pinka_finance");
+    const { data: c } = await fin.from("campaigns").select("state").eq("id", campaignId).maybeSingle();
+    if (!c) return "campaign_not_found";
+    if ((c as { state: string }).state !== "draft") return "event_not_draft";
+    const { error } = await fin.from("campaign_tiers").delete().eq("campaign_id", campaignId).in("id", ids);
+    return error ? normalizeDbError(error.message) : null;
+  };
   const saveMedia = async (campaignId: string, media: Media) => {
     if (Object.keys(media).length === 0) return null;
     const { error } = await userClient.schema("pinka_finance").from("events").update(media).eq("campaign_id", campaignId);
@@ -99,6 +113,14 @@ Deno.serve(async (req) => {
       if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
       const media = parseMedia(body);
       if ("error" in media) return json(media, 400);
+      const remove = Array.isArray(body.remove_tier_ids) ? body.remove_tier_ids : [];
+      if (remove.length > 50 || !remove.every((id) => UUID_RE.test(str(id)))) {
+        return json({ error: "invalid_tier_id" }, 400);
+      }
+      if (remove.length > 0) {
+        const removeError = await removeDraftTiers(str(body.campaign_id), remove as string[]);
+        if (removeError) return json({ error: removeError }, removeError === "event_not_draft" ? 409 : 400);
+      }
       const { data, error } = await rpc("update_event", {
         p_campaign_id: body.campaign_id,
         p_title: opt(body.title),
@@ -120,6 +142,12 @@ Deno.serve(async (req) => {
       });
       if (error) return respond(data, error);
       return respond(data, await saveMedia(str(body.campaign_id), media));
+    }
+
+    case "delete": {
+      if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const { data, error } = await rpc("delete_event_draft", { p_campaign_id: body.campaign_id });
+      return respond(data, error);
     }
 
     case "publish": {
