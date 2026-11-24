@@ -11,6 +11,19 @@ import { corsHeaders } from "../_shared/cors.ts";
 // create_event/update_event su security INVOKER (RLS admin + KYC vrijedi);
 // publish_event je DEFINER s eksplicitnim admin + allowlist + Safe gatingom.
 // verify_jwt=false jer getUser radimo interno (obrazac handoff-consume).
+//
+// Galerija (2026-11-24, editor u domovina-ulaznice web/): create i update
+// primaju `gallery` ([{url}], ≤ 20; alt tekst editor ne šalje). RPC-ovi se
+// zbog nje ne mijenjaju (isti razlog kao u migracijama venue_geo i
+// events_gallery: novi potpis = drop + ponovni grant); funkcija je nakon RPC-a
+// upiše izravnim `update pinka_finance.events` korisnikovim klijentom, pa RLS
+// `events_write` (admin računa) i check `events_gallery_shape` i dalje vrijede.
+// Oblik se provjerava PRIJE RPC-a, da loša galerija ne ostavi napola spremljen događaj.
+//
+// Uređivanje i brisanje skice (2026-11-24): update prima `remove_tier_ids`
+// (vrste ulaznica koje je organizator maknuo u editoru); brišu se samo dok je
+// događaj skica, korisnikovim klijentom (RLS `tiers_write`, admin računa).
+// `delete` zove `delete_event_draft` (DEFINER: admin, samo skica bez narudžbi).
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -45,6 +58,20 @@ Deno.serve(async (req) => {
   const action = typeof body.action === "string" ? body.action : "";
   const rpc = (name: string, args: Json) =>
     userClient.schema("pinka_finance").rpc(name, args);
+  // Samo skica: objavljenom događaju kupci su kupovali pod tim vrstama.
+  const removeDraftTiers = async (campaignId: string, ids: string[]): Promise<string | null> => {
+    const fin = userClient.schema("pinka_finance");
+    const { data: c } = await fin.from("campaigns").select("state").eq("id", campaignId).maybeSingle();
+    if (!c) return "campaign_not_found";
+    if ((c as { state: string }).state !== "draft") return "event_not_draft";
+    const { error } = await fin.from("campaign_tiers").delete().eq("campaign_id", campaignId).in("id", ids);
+    return error ? normalizeDbError(error.message) : null;
+  };
+  const saveMedia = async (campaignId: string, media: Media) => {
+    if (Object.keys(media).length === 0) return null;
+    const { error } = await userClient.schema("pinka_finance").from("events").update(media).eq("campaign_id", campaignId);
+    return error;
+  };
 
   switch (action) {
     case "overview": {
@@ -55,6 +82,8 @@ Deno.serve(async (req) => {
     case "create": {
       if (!UUID_RE.test(str(body.event_id))) return json({ error: "invalid_event_id" }, 400);
       if (!UUID_RE.test(str(body.account_id))) return json({ error: "invalid_account_id" }, 400);
+      const media = parseMedia(body);
+      if ("error" in media) return json(media, 400);
       const { data, error } = await rpc("create_event", {
         p_id: body.event_id,
         p_account_id: body.account_id,
@@ -76,11 +105,22 @@ Deno.serve(async (req) => {
         p_visibility: "private", // objava (visibility=public) ide isključivo kroz publish_event
         p_tiers: Array.isArray(body.tiers) ? body.tiers : [],
       });
-      return respond(data, error);
+      if (error) return respond(data, error);
+      return respond(data, await saveMedia(str(body.event_id), media));
     }
 
     case "update": {
       if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const media = parseMedia(body);
+      if ("error" in media) return json(media, 400);
+      const remove = Array.isArray(body.remove_tier_ids) ? body.remove_tier_ids : [];
+      if (remove.length > 50 || !remove.every((id) => UUID_RE.test(str(id)))) {
+        return json({ error: "invalid_tier_id" }, 400);
+      }
+      if (remove.length > 0) {
+        const removeError = await removeDraftTiers(str(body.campaign_id), remove as string[]);
+        if (removeError) return json({ error: removeError }, removeError === "event_not_draft" ? 409 : 400);
+      }
       const { data, error } = await rpc("update_event", {
         p_campaign_id: body.campaign_id,
         p_title: opt(body.title),
@@ -100,6 +140,13 @@ Deno.serve(async (req) => {
         p_organizer_web: nullable(body.organizer_web),
         p_tiers: Array.isArray(body.tiers) ? body.tiers : null,
       });
+      if (error) return respond(data, error);
+      return respond(data, await saveMedia(str(body.campaign_id), media));
+    }
+
+    case "delete": {
+      if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const { data, error } = await rpc("delete_event_draft", { p_campaign_id: body.campaign_id });
       return respond(data, error);
     }
 
@@ -134,6 +181,29 @@ Deno.serve(async (req) => {
       return json({ error: "unknown_action" }, 400);
   }
 });
+
+// ── galerija ────────────────────────────────────────────────────────────────
+// Ista pravila kao cover_image_url (https, ≤ 1000) i kao check u bazi (≤ 20
+// stavki). Ključ koji nije poslan se ne dira; prazna lista briše.
+
+type Media = { gallery?: Array<{ url: string }> };
+
+const MAX_GALLERY = 20;
+
+function parseMedia(body: Json): Media | { error: string } {
+  const media: Media = {};
+  if ("gallery" in body && body.gallery !== null) {
+    if (!Array.isArray(body.gallery) || body.gallery.length > MAX_GALLERY) return { error: "invalid_gallery" };
+    const gallery: Array<{ url: string }> = [];
+    for (const item of body.gallery) {
+      const url = str((item && typeof item === "object" ? (item as Json) : {}).url).trim();
+      if (!/^https:\/\/\S+$/i.test(url) || url.length > 1000) return { error: "invalid_gallery_url" };
+      gallery.push({ url });
+    }
+    media.gallery = gallery;
+  }
+  return media;
+}
 
 function respond(data: unknown, error: { message: string } | null) {
   if (error) {
