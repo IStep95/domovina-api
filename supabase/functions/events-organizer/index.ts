@@ -11,6 +11,14 @@ import { corsHeaders } from "../_shared/cors.ts";
 // create_event/update_event su security INVOKER (RLS admin + KYC vrijedi);
 // publish_event je DEFINER s eksplicitnim admin + allowlist + Safe gatingom.
 // verify_jwt=false jer getUser radimo interno (obrazac handoff-consume).
+//
+// Galerija i alt naslovne (2026-11-24, editor u domovina-ulaznice web/): create
+// i update primaju `cover_image_alt` i `gallery` ([{url, alt?}], ≤ 20). RPC-ovi
+// se zbog njih ne mijenjaju (isti razlog kao u migracijama venue_geo i
+// events_gallery: novi potpis = drop + ponovni grant); funkcija ih nakon RPC-a
+// upiše izravnim `update pinka_finance.events` korisnikovim klijentom, pa RLS
+// `events_write` (admin računa) i check `events_gallery_shape` i dalje vrijede.
+// Oblik se provjerava PRIJE RPC-a, da loša galerija ne ostavi napola spremljen događaj.
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -45,6 +53,11 @@ Deno.serve(async (req) => {
   const action = typeof body.action === "string" ? body.action : "";
   const rpc = (name: string, args: Json) =>
     userClient.schema("pinka_finance").rpc(name, args);
+  const saveMedia = async (campaignId: string, media: Media) => {
+    if (Object.keys(media).length === 0) return null;
+    const { error } = await userClient.schema("pinka_finance").from("events").update(media).eq("campaign_id", campaignId);
+    return error;
+  };
 
   switch (action) {
     case "overview": {
@@ -55,6 +68,8 @@ Deno.serve(async (req) => {
     case "create": {
       if (!UUID_RE.test(str(body.event_id))) return json({ error: "invalid_event_id" }, 400);
       if (!UUID_RE.test(str(body.account_id))) return json({ error: "invalid_account_id" }, 400);
+      const media = parseMedia(body);
+      if ("error" in media) return json(media, 400);
       const { data, error } = await rpc("create_event", {
         p_id: body.event_id,
         p_account_id: body.account_id,
@@ -76,11 +91,14 @@ Deno.serve(async (req) => {
         p_visibility: "private", // objava (visibility=public) ide isključivo kroz publish_event
         p_tiers: Array.isArray(body.tiers) ? body.tiers : [],
       });
-      return respond(data, error);
+      if (error) return respond(data, error);
+      return respond(data, await saveMedia(str(body.event_id), media));
     }
 
     case "update": {
       if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const media = parseMedia(body);
+      if ("error" in media) return json(media, 400);
       const { data, error } = await rpc("update_event", {
         p_campaign_id: body.campaign_id,
         p_title: opt(body.title),
@@ -100,7 +118,8 @@ Deno.serve(async (req) => {
         p_organizer_web: nullable(body.organizer_web),
         p_tiers: Array.isArray(body.tiers) ? body.tiers : null,
       });
-      return respond(data, error);
+      if (error) return respond(data, error);
+      return respond(data, await saveMedia(str(body.campaign_id), media));
     }
 
     case "publish": {
@@ -134,6 +153,40 @@ Deno.serve(async (req) => {
       return json({ error: "unknown_action" }, 400);
   }
 });
+
+// ── galerija i alt naslovne ─────────────────────────────────────────────────
+// Ista pravila kao cover_image_url (https, ≤ 1000) i kao check u bazi (≤ 20
+// stavki, alt ≤ 300). Ključ koji nije poslan se ne dira; prazan alt / prazna
+// lista brišu.
+
+type Media = { cover_image_alt?: string | null; gallery?: Array<{ url: string; alt?: string }> };
+
+const MAX_GALLERY = 20;
+
+function parseMedia(body: Json): Media | { error: string } {
+  const media: Media = {};
+  if ("cover_image_alt" in body && body.cover_image_alt !== null) {
+    if (typeof body.cover_image_alt !== "string") return { error: "invalid_cover_alt" };
+    const alt = body.cover_image_alt.trim();
+    if (alt.length > 300) return { error: "invalid_cover_alt" };
+    media.cover_image_alt = alt || null;
+  }
+  if ("gallery" in body && body.gallery !== null) {
+    if (!Array.isArray(body.gallery) || body.gallery.length > MAX_GALLERY) return { error: "invalid_gallery" };
+    const gallery: Array<{ url: string; alt?: string }> = [];
+    for (const item of body.gallery) {
+      const s = (item && typeof item === "object" ? item : {}) as Json;
+      const url = str(s.url).trim();
+      if (!/^https:\/\/\S+$/i.test(url) || url.length > 1000) return { error: "invalid_gallery_url" };
+      if (s.alt !== undefined && s.alt !== null && typeof s.alt !== "string") return { error: "invalid_gallery" };
+      const alt = str(s.alt).trim();
+      if (alt.length > 300) return { error: "invalid_gallery" };
+      gallery.push(alt ? { url, alt } : { url });
+    }
+    media.gallery = gallery;
+  }
+  return media;
+}
 
 function respond(data: unknown, error: { message: string } | null) {
   if (error) {
