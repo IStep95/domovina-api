@@ -59,7 +59,7 @@ PSQL=(psql "$DB_URL" -X -q -v ON_ERROR_STOP=1)
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 MIG="$REPO_ROOT/supabase/migrations"
-NOVE=(20261125150000_ulaznice_shema 20261125150100_ulaznice_media_bucket 20261125150200_ulaznice_kopija_podataka 20261125160000_ulaznice_rpc_narudzbe)
+NOVE=(20261125150000_ulaznice_shema 20261125150100_ulaznice_media_bucket 20261125150200_ulaznice_kopija_podataka 20261125160000_ulaznice_rpc_narudzbe 20261125170000_ulaznice_rpc_eventi)
 
 echo "→ 1. supabase db reset --no-seed --version 20261125120000"
 (cd "$REPO_ROOT" && supabase db reset --no-seed --version 20261125120000 >"$TMP/reset.log" 2>&1) || {
