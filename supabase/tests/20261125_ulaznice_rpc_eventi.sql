@@ -1043,7 +1043,8 @@ do $$
 declare r jsonb; e jsonb;
 begin
   r := pg_temp.rpc('0001', pg_temp.q_overview());
-  perform pg_temp.isto_j('overview 0001: ključevi', pg_temp.kljucevi(r), '["accounts","events"]');
+  perform pg_temp.isto_j('overview 0001: ključevi', pg_temp.kljucevi(r), '["accounts","events","platform_admin"]');
+  perform pg_temp.isto_j('overview 0001: nije admin platforme', r->'platform_admin', 'false');
   perform pg_temp.isto_j('overview 0001: računi = osobni + org A',
     pg_temp.vrijednosti(r->'accounts', 'id'),
     (select jsonb_agg(to_jsonb(x) order by x::text) from unnest(array[pg_temp.osobni('0001'), pg_temp.id('a001')]) x));
@@ -1063,6 +1064,7 @@ begin
     jsonb_build_object('campaign_id', pg_temp.id('c002'), 'account_id', pg_temp.id('a001'),
       'slug', 'test-eventi-staro-skica', 'title', 'Test eventi: skica', 'state', 'draft',
       'visibility', 'private', 'destination_address', null,  -- RAZLIKA (odluka 351): staro nulta adresa
+      'submitted_at', null, 'reviewed_at', null, 'review_note', null,  -- 20261125180000 odobravanje
       'event', jsonb_build_object('event_type', 'koncert', 'venue_name', 'Testna dvorana',
         'venue_address', null, 'venue_city', 'Zagreb', 'starts_at', now() + interval '30 days',
         'ends_at', now() + interval '30 days 3 hours', 'timezone', 'Europe/Zagreb',
