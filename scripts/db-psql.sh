@@ -13,7 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/db-env.sh
 . "$SCRIPT_DIR/lib/db-env.sh"
 
-CONTAINER=$(detect_db_container)
+# </dev/null: detect_db_container zove ssh, koji bi inače pojeo SQL sa stdina (--stdin)
+CONTAINER=$(detect_db_container </dev/null)
 
 STDIN_MODE=false
 ARGS=()

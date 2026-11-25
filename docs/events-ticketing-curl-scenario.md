@@ -11,8 +11,9 @@
 > Funkcije: `events-order`, `events-confirm` (ukinuta, 410), `events-tickets`, `events-feed`,
 > `events-checkin`, `events-organizer`, `events-stripe-intent`, `events-stripe-confirm`.
 >
-> ⚠ **Na produkciji ništa od ovoga prije S6 lanca** (migracije `20261125150000`+ i
-> `PGRST_DB_SCHEMAS` s `ulaznice`, v. `docs/ulaznice-shema/research/2026-11-25-pgrst-db-schemas.md`).
+> **Na produkciji od 2026-11-25** (S6 lanca: migracije `20261125150000`–`170000`, `PGRST_DB_SCHEMAS`
+> s `ulaznice`, sve `events-*` funkcije; journal `deploys/20261125T163756Z-1d7a89b.md`, odluke 600–608).
+> Stari ticketing u `pinka_finance` je zamrznut (trigger `ulaznice_zamrznuto`) do brisanja u S7.
 
 **Mapiranje iz stare sheme** (`pinka_finance` → `ulaznice`): `campaigns` + `events` →
 `ulaznice.events` (id = stari campaign id, jedan red nosi glavu i detalje); `campaign_tiers` →
@@ -586,19 +587,22 @@ curl -s -X POST "$API/rest/v1/rpc/refund_ticket_order" \
    `wrangler secret` Workera; smoke: `curl -s -o /dev/null -w '%{http_code}' -X POST
    https://api.domovina.ai/functions/v1/events-stripe-confirm -d '{}'` → `401` (ne 200, ne 503).
 
-## Deploy (prod — ručni korak, tek u S6)
+## Deploy (prod)
 
-Redoslijed i vrata su u `docs/ulaznice-shema/plan.md` (S6) i
-`docs/ulaznice-shema/research/2026-11-25-pgrst-db-schemas.md`. Ukratko:
+Prvi prod deploy je napravljen u S6 lanca (2026-11-25) po runbooku
+`docs/ulaznice-shema/research/2026-11-25-runbook-prebacivanja.md`; journal
+`deploys/20261125T163756Z-1d7a89b.md`. Za kasnije izmjene:
 
 ```bash
-./scripts/db-migrate.sh --dry-run    # ⚠ povukao bi i ulaznice migracije: ne prije S6
-# S6: migracije 20261125150000–170000 → PGRST_DB_SCHEMAS += ulaznice → funkcije
+./scripts/db-migrate.sh --dry-run    # nove migracije pojedinačno, v. docs/deployment-runbook.md
 for f in events-order events-confirm events-tickets events-checkin events-organizer \
          events-stripe-intent events-stripe-confirm; do
   ./scripts/deploy-functions.sh --only=$f
 done
 ./scripts/deploy-functions.sh --only=events-feed --restart -y
 ```
+
+`PGRST_DB_SCHEMAS` (s `ulaznice`) živi u compose datoteci na hostu, ne samo u Coolify env-u
+(odluka 602): promjena liste shema ide istim putem kao u S6.
 
 `EVENTS_STRIPE_CONFIRM_SECRET` mora biti u env-u edge runtimea prije funkcija (bez nje 503).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Ulaznice S2/S3: probni prolaz migracija 20261125150000/150100/150200/160000 nad podacima
+# Ulaznice S2–S3b: probni prolaz migracija 20261125150000/150100/150200/160000/170000 nad podacima
 # pinka_finance, LOKALNO (docs/ulaznice-shema/, docs/migration-testing-playbook.md).
 #
 # Ne radi ništa prema produkciji: nema ssh-a, nema remote psql-a, čita samo
@@ -23,7 +23,7 @@
 #      zatim STUB redci za auth.users / public.accounts koje podaci referenciraju
 #      (dump pinka_finance ne nosi račune; nove FK-ove ulaznice → public.accounts
 #      migracija provjerava normalno). Ili: fixture --prod-oblik.
-#   3. tri migracije kao scripts/db-migrate.sh (single transaction + red u
+#   3. pet migracija (NOVE niže) kao scripts/db-migrate.sh (single transaction + red u
 #      supabase_migrations.schema_migrations), pa kopija još jednom (idempotencija)
 #   4. brojevi i provjere; u --prod-oblik načinu i usporedba s očekivanim.
 # =============================================================================
