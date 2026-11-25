@@ -23,8 +23,8 @@ Legenda: `[x]` gotovo · `[ ]` otvoreno · `[~]` u radu · `(!)` traži korisnik
 - [x] Migracija: kopija podataka iz `pinka_finance` uz iste UUID-ove (idempotentna) → S2
 - [x] SQL test sheme i kopije (`supabase/tests/`), prolazi nad `supabase db reset` i nad vraćenim prod dumpom → S2
 - [x] RPC-i narudžbi i ulaznica u `ulaznice` s istim potpisima i JSON odgovorima → S3
-- [ ] RPC-i organizatora i eventa u `ulaznice` → S3b
-- [~] Postojeći SQL testovi ticketinga prepisani na `ulaznice` → S3 (narudžbe, rotacija, kopija ✓), S3b (rail gate, organizator)
+- [x] RPC-i organizatora i eventa u `ulaznice` → S3b
+- [x] Postojeći SQL testovi ticketinga prepisani na `ulaznice` → S3 (narudžbe, rotacija, kopija ✓), S3b (rail gate, organizator ✓)
 
 ## F2 — Potrošači lokalno
 

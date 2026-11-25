@@ -177,3 +177,45 @@ Migracija `20261125160000_ulaznice_rpc_narudzbe.sql`; testovi `20261125_ulaznice
      dvije istekle onchain narudžbe imaju `reserved=true`, tier `9940f…` ima `inventory_claimed=10/10` bez ijedne narudžbe,
      tier `58a12…` claimed 1 uz 1 plaćenu (točno). Migracija to ne normalizira; S6 odlučuje uz svježi dump (pitanje na
      vrhu S6.md).
+
+## S3b (2026-11-25)
+
+Migracija `20261125170000_ulaznice_rpc_eventi.sql` (commitovi `b9bfbad`, `007d65b`); testovi `20261125_ulaznice_rpc_eventi_staro.sql`
+(213, ponašanje `pinka_finance`) i `20261125_ulaznice_rpc_eventi.sql` (251, isti scenariji nad `ulaznice`, razlike označene
+`-- RAZLIKA (odluka 35x/36x)`, plus scenarij 12 s rail gateom iz `e77f9ae`).
+
+350. **`create_event` je DEFINER s vlastitom provjerom admin računa + `public.is_identity_verified()`**, prije idempotencije. Greška
+     ostaje 42501 s RLS porukom, sada `for table "events"` (edge je skraćuje, Worker `api.ts:558` mapira na 403). Rate limit 20/24 h
+     (`campaign_rate_limited`) i prisilna skica dolaze samo iz `events_write_guard`. `service_role` preskače admin/KYC i rate limit.
+     Ne-admin član koji ponovi postojeći id dobiva 42501 umjesto `existing:true`. Čisti kodovi (`not_authorized`/`kyc_required`)
+     su prijedlog za S4/S5, ne mijenjaju se sada (odluka 3).
+351. **`p_destination_address` ostaje u potpisu, vrijednost se odbacuje** (odluka 110). Krivi format i dalje `invalid_destination`,
+     null je dopušten; `organizer_overview` vraća `destination_address: null`; `campaign_destination_*` greške otpadaju.
+352. **Rail gate:** `ulaznice.event_rail_ready(account_id, event_id)` = (`stripe_account_id is not null and stripe_charges_enabled`)
+     ili nema tiera s `price_cents > 0` (event bez tierova prolazi). Redoslijed grešaka u `publish_event`: `not_authenticated`,
+     `invalid_target_state`, `campaign_not_found`, `not_authorized`, `invalid_state_transition`, `organizer_not_allowlisted`,
+     `event_no_working_rail`. `closed` samo iz `active`. `event_rail_ready` izvršava samo `service_role` (original i `authenticated`).
+353. **`events_write_guard` za izravni `authenticated` UPDATE u `active` traži allowlistu i rail.** Ispravlja bug originala
+     (admin je izravnim PATCH-om objavljivao mimo allowliste). U `publish_event` se iste provjere izvrše dvaput s istim ishodom.
+354. **`update_event` dobiva `p_gallery`, `p_attendance_mode`, `p_venue_lat`, `p_venue_lon`, `p_cover_image_alt`** na kraju, default
+     null; edge s imenovanim argumentima radi i dalje. Kodovi: `invalid_gallery`, `invalid_gallery_url`, `invalid_attendance_mode`,
+     `invalid_location` (par i raspon), `invalid_cover_image_alt`. Koordinate se kroz RPC ne mogu obrisati. Izravni pisovi edgea
+     (`events`, `ticket_tiers` skice, `event_access`) i dalje rade kroz S2 RLS; nova politika nije trebala.
+355. **Otpadaju `campaign_not_tickets` i `event_not_found`.** `update_event` je DEFINER, zaključava red, provjerava admina, a ne-član
+     nad tuđom skicom dobiva `campaign_not_found` kao u originalu (provjera vidljivosti po `events_select`).
+356. **`events.description` ostaje** (kopija `description_hr`; nijedan JSON ga ne vraća). Brisanje bi slomilo ponovljenu kopiju 150200;
+     kandidat za S7.
+357. **Rail gate i nakon objave:** trigger `ulaznice.ticket_tiers_write_guard` (DEFINER, before insert/update/delete). Na eventu koji
+     nije skica insert plaćenog tiera ili cijena 0 → >0 bez radnog Stripea baca `event_no_working_rail` (i iz `update_event`).
+     Plaćena → druga plaćena cijena ne okida (kopirani aktivni eventi bez Stripea ostaju uredivi). `service_role`/`postgres` zaobilaze.
+     Gašenje Stripea nakon objave se ne hvata (pada tek `events-stripe-intent`).
+358. **Rate limit se ne zaobilazi brisanjem skice.** Brisanje je meko (`deleted_at`), a DEFINER guard broji sve retke. Bug originala
+     (INVOKER guard kroz RLS ne vidi obrisane) zabilježen u testu starog ponašanja.
+359. **Izravno brisanje tiera izvan skice odbija se:** `event_not_draft` (isti kod kao edge `removeDraftTiers`), tier s narudžbom
+     `tier_has_orders` (umjesto sirovog 23503). Original je dopuštao, pa je narudžba ostajala s `tier_id = null`. Kaskada brisanja eventa prolazi.
+360. **`create_event` sanitizira opise** (`description*` i opise tierova) kroz `ulaznice.sanitize_ugc`, kao `update_event`.
+361. **Krivi `imenska` daje `invalid_tier_imenska`** (create i update) umjesto 22P02.
+
+Zadržana „čudna” ponašanja originala (označena `-- ČUDNO:` u oba testa): validacija prije provjere prava, termin u prošlosti u
+`update_event`, KYC samo kod kreiranja, `javascript:` URL u galeriji kroz izravni pis, `organizer_overview` bez novih polja.
+`create_event` nakon brisanja s istim id-em i dalje daje `campaign_exists` (idempotencija gleda `deleted_at is null`).
