@@ -14,6 +14,13 @@ import { corsHeaders } from "../_shared/cors.ts";
 //
 // Novac NIKAD ne prolazi ovuda: vraćamo iznos + organizatorov Safe, plaćanje
 // je P2P EURe transfer u appu; verifikacija = events-confirm. verify_jwt=false.
+//
+// Besplatna ulaznica (2026-11-25, migracija events_free_online): narudžba od
+// 0 centi se potvrđuje ODMAH, ovdje, kroz confirm_ticket_order_offchain s
+// rail-om 'free' (service klijent). Nema uplate koju bi trebalo dokazati, a RPC
+// odbija 'free' za svaku narudžbu koja nije 0 (order_not_free), pa otvorena
+// funkcija ne može izdati plaćenu ulaznicu. Odgovor tada nosi i QR tokene
+// (jednokratno, deliver_ticket_orders), kao events-stripe-confirm.
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,6 +39,7 @@ Deno.serve(async (req) => {
     quantity?: number;
     holders?: Array<{ full_name?: string; email?: string }>;
     payer_address?: string;
+    buyer_email?: string;
   };
   try {
     body = await req.json();
@@ -71,7 +79,43 @@ Deno.serve(async (req) => {
     return json({ error: normalizeDbError(error.message) }, 400);
   }
 
-  return json(data, 200);
+  const order = (data ?? {}) as Record<string, unknown>;
+  if (order.amount_cents !== 0 || order.state !== "pending") return json(data, 200);
+
+  // ── besplatna: potvrdi odmah i isporuči tokene ───────────────────────────
+  const buyerEmail = (body.buyer_email ?? "").trim();
+  if (buyerEmail.length > 200) return json({ error: "invalid_payer_email" }, 400);
+  const service = createClient(URL, SERVICE, { auth: { persistSession: false } });
+  const fin = service.schema("pinka_finance");
+  const { data: confirmed, error: cErr } = await fin.rpc("confirm_ticket_order_offchain", {
+    p_order_id: body.order_id,
+    p_rail: "free",
+    p_external_ref: "free_" + String(body.order_id).replaceAll("-", ""),
+    p_amount_cents: 0,
+    p_payer_email: buyerEmail || null,
+  });
+  if (cErr) return json({ error: normalizeDbError(cErr.message) }, 400);
+  const result = (confirmed ?? {}) as Record<string, unknown>;
+  if (result.status !== "paid" && result.status !== "already_paid") return json({ ...order, ...result }, 409);
+
+  const { data: delivered, error: dErr } = await fin.rpc("deliver_ticket_orders", { p_order_ids: [body.order_id] });
+  const first = (Array.isArray(delivered) ? delivered[0] : null) as { tickets?: Array<Record<string, unknown>> } | null;
+  const tickets = (first?.tickets ?? []).map((t) => ({
+    serial: t.serial,
+    holder_name: t.holder_name,
+    holder_email: t.holder_email,
+    state: t.state,
+    qr_token: t.qr_token,
+  }));
+  return json({
+    ...order,
+    state: "paid",
+    free: true,
+    status: result.status,
+    serials: result.serials,
+    tickets,
+    ...(dErr ? { delivery_error: dErr.message } : {}),
+  }, 200);
 });
 
 // PostgREST prefiksira poruku exceptiona; zadrži samo strojni kod kad je čist.

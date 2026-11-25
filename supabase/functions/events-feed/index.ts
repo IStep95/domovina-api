@@ -16,6 +16,8 @@ import { corsHeaders } from "../_shared/cors.ts";
 // S2b (domovina-ulaznice web/): event dobiva venue_lat, venue_lon, cover_image_alt —
 // aditivno i nullable, stari klijenti ih ignoriraju.
 // Galerija (2026-11-20): event dobiva `gallery` — lista {url, alt}, prazna ako je nema.
+// Besplatni i online (2026-11-25): event dobiva `attendance_mode` (physical | online).
+// Link online događaja (event_access) se ovdje NAMJERNO ne vraća — samo vlasnicima ulaznica.
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -41,7 +43,7 @@ Deno.serve(async (req) => {
     .select(
       "id, slug, title, description, destination_address, state, " +
         "events!inner(event_type, venue_name, venue_address, venue_city, starts_at, ends_at, " +
-        "timezone, description_hr, description_en, cover_image_url, cover_image_alt, gallery, venue_lat, venue_lon, " +
+        "timezone, description_hr, description_en, cover_image_url, cover_image_alt, gallery, attendance_mode, venue_lat, venue_lon, " +
         "organizer_name, organizer_email, organizer_web), " +
         "campaign_tiers(id, title, description, kind, price_cents, inventory_total, inventory_claimed, " +
         "imenska, sale_start, sale_end, sort)",
