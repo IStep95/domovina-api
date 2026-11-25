@@ -4,6 +4,8 @@ Last updated: 2026-05-26
 
 Status: backend production-ready za MVP. Sve niže su poboljšanja / sljedeće faze.
 
+> **Lanac u tijeku:** odvajanje ulaznica iz `pinka_finance` u shemu `ulaznice` — `docs/ulaznice-shema/` (plan od 2026-11-25).
+
 ## Hot path (blokira ili usporava Flutter integraciju)
 
 - [ ] **Coolify API token re-issue** (read+write+deploy perms) — currently 403. Token ide u `.local-secrets.env` → `COOLIFY_API_TOKEN` (pod navodnicima). **Unlock za full API-driven ops:** `coolify-env-apply.sh` (bulk env preko API + post-verify) i ostatak `coolify-*.sh`. Vidi [[feedback-coolify-api]]. (`ops-verify.sh` radi i bez tokena — preko SSH.)
