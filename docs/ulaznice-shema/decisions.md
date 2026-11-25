@@ -321,3 +321,11 @@ Kupcima nedostupno ~11 min (NAJAVA 16:34 → prod deploy).
 608. **Nakon prozora:** `ops-verify` PASS; otisak `pinka_finance` `6/75/139/4/423840d1…` isti od T2; `sponsor-*` cron `succeeded`;
      jedina nova narudžba u `ulaznice` je staging test (605). Rollback ID-jevi Workera: prod `bdddbaaa` (prije prozora),
      staging `d5f9335f`; novi prod `ced9eb6f`, staging `70b6e87c`. Promatranje do **2026-12-09** (14 dana), vrata prije S7.
+
+## Vrata prije S7 (2026-11-25, odgovor korisnika)
+
+Pitanja su na vrhu [handoffs/S7.md](handoffs/S7.md).
+
+790. **Brisanje starog ticketinga iz `pinka_finance` odobreno** (pitanje 1), dano 2026-11-25, odmah nakon S6. Razdoblje
+     promatranja nije skraćeno: S7 kreće nakon 2026-12-09, a prije brisanja ipak provjerava uvjete iz pitanja 1 (logovi bez
+     `ulaznice_zamrznuto`, otisak, cron, PR #12). Ako provjera nešto nađe, stani i pitaj ponovno.

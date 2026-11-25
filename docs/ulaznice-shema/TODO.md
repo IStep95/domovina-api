@@ -41,5 +41,5 @@ Legenda: `[x]` gotovo · `[ ]` otvoreno · `[~]` u radu · `(!)` traži korisnik
 
 ## F4 — Čišćenje
 
-- [ ] (!) Korisnik odobrio brisanje starih objekata nakon razdoblja promatranja → vrata prije S7
+- [x] (!) Korisnik odobrio brisanje starih objekata nakon razdoblja promatranja → vrata prije S7 (odluka 790; promatranje do 2026-12-09)
 - [ ] Ticketing objekti uklonjeni iz `pinka_finance`, `campaigns.type` bez `'tickets'` (ako potrošači dopuštaju), dokumentacija osvježena → S7

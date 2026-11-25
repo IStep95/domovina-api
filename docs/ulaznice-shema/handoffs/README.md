@@ -33,7 +33,7 @@ iz clipboarda; to znači prvi otvoreni red u „Stanje lanca”.
 | S4 | Edge funkcije | gotovo | 708445c, ee1416d | `deno check` ✓; grep `pinka_finance` prazan; `scripts/ulaznice-curl-scenario.sh` 126 ✓ ×2 | odluke 400–408; Stripe API ručno u S6 |
 | S5 | domovina-ulaznice + runbook | gotovo | ulaznice `f5e3a40`, `747a7d2`; api `2c1d6ae` | `npm test` 147/147, `test:types`, `web check` ✓ | odluke 500–507; draft PR domovinatv/domovina-ulaznice#12; vrata na vrhu S6.md |
 | S6 | Prebacivanje produkcije | gotovo | bc8e106, bd7942f, journal 5681d5c | ops-verify PASS; brojevi = probni prolaz; staging plaćena narudžba `paid`+QR | odluke 600–608; journal `deploys/20261125T163756Z-1d7a89b.md`; promatranje do 2026-12-09 |
-| S7 | Brisanje starog | čeka vrata (2026-12-09) | | | pitanje na vrhu S7.md |
+| S7 | Brisanje starog | otvoreno od 2026-12-09 | | | vrata prošla (odluka 790) |
 
 ## Zajednička pravila (vrijede u svakoj sesiji)
 
