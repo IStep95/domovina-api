@@ -14,7 +14,7 @@ Legenda: `[x]` gotovo · `[ ]` otvoreno · `[~]` u radu · `(!)` traži korisnik
 - [x] Gdje se ID-jevi narudžbi/kampanja zapisuju izvan baze (Stripe metadata, QR, mailovi, D1 u Workeru, linkovi) → S1
 - [x] Stanje produkcije naredbom: broj eventa, tiera, narudžbi po railu, ulaznica, objekata u `pinka-covers` po vlasniku → S1
 - [x] Tablica mapiranja staro → novo (tablica, kolona, RPC) i popis onoga što ostaje u `pinka_finance` → S1
-- [ ] (!) Korisnik odlučio: onchain rail za ulaznice (prenijeti / ukinuti), dvije neprimijenjene migracije iz 9/2026, dogovor s Ivanom o zamrzavanju backend rada na `events-*` → vrata nakon S1 (pitanja na vrhu `handoffs/S2.md`)
+- [x] (!) Korisnik odlučio (odluke 110–114): onchain rail za ulaznice (prenijeti / ukinuti), dvije neprimijenjene migracije iz 9/2026, dogovor s Ivanom o zamrzavanju backend rada na `events-*` → vrata nakon S1 (pitanja na vrhu `handoffs/S2.md`)
 
 ## F1 — Nova shema lokalno
 

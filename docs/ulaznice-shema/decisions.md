@@ -77,3 +77,27 @@ Izvor svih brojki: [research/2026-11-25-inventura.md](research/2026-11-25-invent
      ticketinga pišu se od nule (danas ih nema).
 107. **Migracije = produkcija** osim dviju iz 9/2026 (katalog uspoređen, 5 redaka razlike). S2 gradi iz
      migracija bez dodatnog usklađivanja.
+
+## Vrata nakon S1 (2026-11-25, odgovori korisnika)
+
+Pitanja i posljedice su na vrhu [handoffs/S2.md](handoffs/S2.md).
+
+110. **Onchain rail za ulaznice se ukida** (pitanje 1). `ulaznice` nema `confirm_ticket_order`,
+     onchain stupce narudžbe ni `events.destination_address`; `create_ticket_order` gubi granu
+     `p_payer_address`. `events-confirm` vraća grešku „rail ukinut” (S4), pa onchain plaćanje u
+     safe-wallet mobile prestaje raditi. Dvije istekle onchain narudžbe kopiraju se kao povijest:
+     `payment_rail='onchain'` dopušten samo uz `state='expired'`.
+111. **Rujanske migracije se ugrađuju u `ulaznice`** (pitanje 2). `rotate_ticket_tokens` ide u S3,
+     rail gate u `ulaznice.publish_event` u S3b, s pravilom „Stripe Connect aktivan ili samo besplatni
+     tierovi”. Na `pinka_finance` se nikad ne primjenjuju; S2 uklanja `20260903120000_events_publish_rail_gate.sql`,
+     `20260903120100_events_rotate_ticket_tokens.sql` i njihov test `supabase/tests/20260903_rail_gate_i_rotacija.sql`
+     (logiku testa S3/S3b prepisuje na `ulaznice`). Posljedica: do S6 na produkciji ne rade Stripe-only
+     objava ni Workerova rotacija QR-a.
+112. **Prijelaz deploya u S6 je koordinirani prozor uz zamrzavanje pisanja** (pitanje 4), bez
+     kompatibilnih viewova u `pinka_finance`.
+113. **Tablice i stupci se preimenuju** po odluci 100 (pitanje 5): `orders`, `ticket_tiers`,
+     `order_events`, `event_id`, `order_id`, `buyer_account_id`. RPC-i i HTTP ugovor ostaju isti.
+
+114. **S5 radi ova strana** (pitanje 3): grana od `ivan/main` u `domovina-ulaznice`, PR Ivanu, on
+     pregledava i deploya Worker. Backend rad na `events-*` i ticketing migracijama zamrzava se od S2
+     do S6. Poruku Ivanu šalje korisnik.
