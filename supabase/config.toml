@@ -15,7 +15,7 @@ major_version = 15
 
 [api]
 port = 55321
-schemas = ["public", "domovina_ai", "pinka_finance", "storage", "graphql_public"]
+schemas = ["public", "domovina_ai", "pinka_finance", "ulaznice", "storage", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 
 [studio]
