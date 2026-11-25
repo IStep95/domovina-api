@@ -1,8 +1,8 @@
-// Shema `ulaznice` u Supabaseu na api.domovina.ai kao DBML (stanje 2026-11-25, nakon S6 lanca).
+// Shema `ulaznice` u Supabaseu na api.domovina.ai kao DBML (stanje 2026-11-25, nakon S6 lanca i odobravanja događaja).
 //
 // Izvor istine su migracije 20261125150000_ulaznice_shema (tablice, RLS, trigeri),
 // 20261125150100_ulaznice_media_bucket, 20261125160000_ulaznice_rpc_narudzbe i
-// 20261125170000_ulaznice_rpc_eventi (RPC-i). Ovaj DBML je pogled na njih: promjena sheme
+// 20261125170000_ulaznice_rpc_eventi (RPC-i) i 20261125180000_ulaznice_odobrenje (odobravanje događaja). Ovaj DBML je pogled na njih: promjena sheme
 // ide u novu migraciju i ovdje u istom commitu.
 //
 // Prikaz: https://stepanic.github.io/open-diagram/?url=https://github.com/domovinatv/domovina-api/blob/main/docs/ulaznice-shema/ulaznice.dbml
@@ -21,7 +21,7 @@ Project ulaznice {
 
     - **Ljubičasto**: događaj i prodaja (`events`, `ticket_tiers`, `event_access`).
     - **Zeleno**: narudžba, ulaznice i audit (`orders`, `tickets`, `order_events`).
-    - **Narančasto**: organizator (allowlist, DAC7 evidencija, Stripe Connect).
+    - **Narančasto**: organizator i odobravanje (allowlist, admini platforme, DAC7, Stripe Connect).
     - **Sivo**: zajednička jezgra izvan sheme (`public.accounts`, `auth.users`).
     - **DiagramView** (izbornik gore): kupnja, organizator, ulaz na događaj.
 
@@ -57,7 +57,7 @@ Enum ulaznice.ticket_state {
   void [note: 'poništena (void_ticket, refund)']
 }
 
-Table ulaznice.events [headercolor: #7c3aed, note: 'Događaj: spojeni campaigns type=tickets + pinka_finance.events. id = stari campaigns.id. Pisanje: create_event, update_event, publish_event, delete_event_draft'] {
+Table ulaznice.events [headercolor: #7c3aed, note: 'Događaj: spojeni campaigns type=tickets + pinka_finance.events. id = stari campaigns.id. Pisanje: create_event, update_event, publish_event, delete_event_draft, submit_event_for_review, approve_event, reject_event'] {
   id uuid [pk, default: `gen_random_uuid()`, note: '= campaigns.id']
   account_id uuid [not null, ref: > public.accounts.id, note: 'org account vlasnik; on delete cascade']
   slug citext [not null, unique, note: 'nepromjenjiv (trigger guard_immutable_slug)']
@@ -85,6 +85,9 @@ Table ulaznice.events [headercolor: #7c3aed, note: 'Događaj: spojeni campaigns 
   organizer_email text
   organizer_web text
   deleted_at timestamptz [note: 'soft-delete skice']
+  submitted_at timestamptz [note: 'skica poslana na odobrenje (submit_event_for_review); null nakon reject_event']
+  reviewed_at timestamptz [note: 'admin platforme odobrio ili odbio']
+  review_note text [note: 'razlog odbijanja, ≤ 1000']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 
@@ -204,6 +207,12 @@ Table ulaznice.organizer_allowlist [headercolor: #ea580c, note: 'Org accounti ko
   created_at timestamptz [not null, default: `now()`]
 }
 
+Table ulaznice.platform_admins [headercolor: #ea580c, note: 'Admini platforme: odobravaju događaje (approve_event, reject_event, review_queue). Upis samo operater (service_role/psql). Odobrenje admina zamjenjuje allowlist za taj događaj'] {
+  user_id uuid [pk, ref: - auth.users.id, note: 'on delete cascade']
+  note text [note: '≤ 500']
+  created_at timestamptz [not null, default: `now()`]
+}
+
 Table ulaznice.organizer_records [headercolor: #ea580c, note: 'DAC7 evidencija organizatora. OSJETLJIVO: čitaju samo service_role i admin vlastitog org accounta. Pisanje: upsert_organizer_record'] {
   account_id uuid [pk, ref: - public.accounts.id, note: 'on delete cascade']
   legal_name text [not null]
@@ -251,8 +260,9 @@ TableGroup narudzba [color: #059669, note: 'Kupnja, izdane ulaznice, audit'] {
   ulaznice.order_events
 }
 
-TableGroup organizator [color: #ea580c, note: 'Tko smije objaviti, DAC7, Stripe Connect'] {
+TableGroup organizator [color: #ea580c, note: 'Tko smije objaviti (allowlist ili odobrenje admina), DAC7, Stripe Connect'] {
   ulaznice.organizer_allowlist
+  ulaznice.platform_admins
   ulaznice.organizer_records
   ulaznice.organizer_payment_rails
 }
@@ -269,6 +279,8 @@ Note rpc [color: #7c3aed] {
     redeem_ticket, void_ticket, refund_ticket_order, rotate_ticket_tokens
   Eventi: create_event, update_event, publish_event, delete_event_draft,
     event_rail_ready, organizer_overview, upsert_organizer_record
+  Odobravanje: submit_event_for_review, review_queue, approve_event,
+    reject_event, is_platform_admin
   '''
 }
 
@@ -279,6 +291,16 @@ Note tok_kupnje [color: #059669] {
   → Stripe PaymentIntent (events-stripe-intent) → webhook → events-stripe-confirm
   → confirm_ticket_order_offchain (paid) → deliver_ticket_orders (tickets + QR)
   Besplatno: rail free, odmah paid.  Istek: expire_stale_ticket_orders (cron).
+  '''
+}
+
+Note tok_odobrenja [color: #ea580c] {
+  '''
+  Odobravanje događaja
+  skica → submit_event_for_review (submitted_at) → review_queue (admin)
+  → approve_event: active + public   |   reject_event: submitted_at = null, review_note
+  Allowlistani organizator i dalje objavljuje sam (publish_event).
+  Rail gate vrijedi i za admina.
   '''
 }
 
@@ -310,6 +332,7 @@ DiagramView organizator {
     ulaznice.events
     ulaznice.ticket_tiers
     ulaznice.organizer_allowlist
+    ulaznice.platform_admins
     ulaznice.organizer_records
     ulaznice.organizer_payment_rails
     public.accounts
