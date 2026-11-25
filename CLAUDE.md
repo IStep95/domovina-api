@@ -9,5 +9,8 @@ Plan, odluke i handoffi su u `docs/ulaznice-shema/` (`plan.md`, `decisions.md`, 
 `handoffs/`). „Nastavi ulaznice shemu” znači: otvori prvi neoznačeni red u „Stanje lanca” u
 `docs/ulaznice-shema/handoffs/README.md` i kreni iz pripadnog `SN.md`.
 
+Shema `ulaznice` kao dijagram (DBML, `docs/ulaznice-shema/ulaznice.dbml`):
+https://stepanic.github.io/open-diagram/?url=https://github.com/domovinatv/domovina-api/blob/main/docs/ulaznice-shema/ulaznice.dbml
+
 **⚠ Migracije `20261125150000`–`20261125160000` (`ulaznice`, i svaka sljedeća iz lanca) ne smiju na produkciju prije S6 lanca.**
 `db-migrate.sh` bi ih povukao: uvijek `--dry-run`, pa ostale migracije pojedinačno.
