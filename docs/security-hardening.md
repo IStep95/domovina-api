@@ -21,6 +21,8 @@ Vezano: [secret-rotation.md](secret-rotation.md) (rotacija ključeva).
 2. **Cloudflare Access — admin paths** na `api.domovina.ai`: `/dashboard*`, `/project*`,
    `/api/platform*` → Allow samo dopuštene email adrese.
 3. **Cloudflare Access — cijeli `studio.domovina.ai`** → ista email lista.
+   Obje aplikacije dijele jedno pravilo `domovina-studio-access-policy` (Zero Trust → Access
+   controls → Policies): adresa dodana tamo dobiva i Studio i admin putanje. Ivan dodan 2026-11-25.
 
 ## App / data
 
