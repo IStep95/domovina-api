@@ -8,3 +8,6 @@ Deploy i migracije: `docs/deployment-runbook.md`, `docs/migration-testing-playbo
 Plan, odluke i handoffi su u `docs/ulaznice-shema/` (`plan.md`, `decisions.md`, `TODO.md`,
 `handoffs/`). „Nastavi ulaznice shemu” znači: otvori prvi neoznačeni red u „Stanje lanca” u
 `docs/ulaznice-shema/handoffs/README.md` i kreni iz pripadnog `SN.md`.
+
+**⚠ Migracije `20261125150000`–`20261125150200` (`ulaznice`) ne smiju na produkciju prije S6 lanca.**
+`db-migrate.sh` bi ih povukao: uvijek `--dry-run`, pa ostale migracije pojedinačno.
