@@ -287,3 +287,37 @@ Pitanja su na vrhu [handoffs/S6.md](handoffs/S6.md).
 593. **Plaćena narudžba u smoke testu samo na stagingu** (pitanje 4); na produkciji besplatna/Webinar, preuzimanje postojeće
      plaćene ulaznice i donacije.
 594. **Inventar se prenosi kako jest** (pitanje 5, odluka 309): bez normalizacije, nema koraka 3.3a.
+
+## S6 — prebacivanje produkcije (2026-11-25)
+
+Dnevnik s vremenima je lokalno u `backups/s6-20261125/dnevnik.txt` (gitignoran); SQL u `research/sql/s6-*.sql`.
+Vremena (UTC): T1 backup 16:33 · NAJAVA 16:34 · **T2 zamrzavanje 16:34:38** · migracije 16:34:48–16:35:10 · slike 16:35 ·
+PGRST 16:36 · **T6 funkcije 16:37:08** · journal 16:37:56 · staging 16:38 · plaćena test narudžba 16:40 · prod Worker ~16:45.
+Kupcima nedostupno ~11 min (NAJAVA 16:34 → prod deploy).
+
+600. **Korisnik potvrdio prozor „kreni sad”** uz posljedicu: prod deploy grane `feat/ulaznice-shema` pušta na produkciju i Ivanove
+     stavke deploy-dug #15/#16/#18/#20 (dotad samo staging). Ivan se obavještava da ne deploya dok mu se ne javi (korisnik).
+601. **`prod_sql` iz runbooka nije radio:** `detect_db_container` zove `ssh`, koji pojede SQL sa stdina, pa psql dobije prazan
+     ulaz i tiho završi s 0. Popravak `C=$(detect_db_container </dev/null)` (runbook, `bc8e106`). Isto vrijedi za svaki
+     `ssh_remote` unutar skripte kojoj je stdin SQL.
+602. **`PGRST_DB_SCHEMAS` se ne mijenja samo kroz `coolify-env-set.sh`:** Coolify vrijednost renderira u
+     `/data/coolify/services/<uuid>/docker-compose.yml` (`environment:` na `supabase-rest` i `supabase-studio`), a `environment`
+     ima prednost pred `.env`. Uređen compose na hostu (`sudo sed`, backup `docker-compose.yml.bak-ulaznice-<epoch>`), pa
+     `coolify-restart.sh supabase-rest --recreate -y`; isti put kao `vijesti` 11. 11. (`.bak-vijesti-*`). Coolify DB ima novu
+     vrijednost (API), pa puni deploy daje isto. `coolify-env-set.sh` bez `-y` na praznom stdinu tiho odustane.
+603. **Kopija slika kroz `/object/copy` s `destinationBucket` radi** na storage-api produkcije (odluka 507 potvrđena): 5/5 → 200.
+604. **Smoke 10.1 (besplatna narudžba) nije proveden:** na jezgri nema besplatnog objavljenog eventa (seed `…f2` ne postoji na
+     produkciji), a stvaranje traži prijavu organizatora. Put besplatne narudžbe pokriven je lokalno (S4 curl scenarij, S5 testovi).
+605. **Smoke 10.2 na stagingu:** `POST /api/narudzba` (tier `0b8e2f8f…`, 25 €) → `81627af1-ac5f-4129-bfcf-1b205e8d5b1e`
+     `pending` u `ulaznice.orders`; korisnik platio Checkout sandbox karticom (Claude ne upisuje kartice) → webhook →
+     `events-stripe-confirm` → `paid`, ulaznica `TES-000003`, audit `created/paid/tickets.issued`, `inventory_claimed` 1→2.
+     „Resend”, povrat i `account.updated` nisu ponovljeni u prozoru (pokriveni S4 scenarijem).
+606. **Produkcija nakon prozora:** `/`, `/api/dogadjaji` (prazno: test organizator skriven), `/api/zdravlje`, postojeća plaćena
+     narudžba `ab2e7543…` (API i stranica) → 200. `/organizator` i `/skener` → 404 iz prod Astro weba (`6b996d75`, 23. 11.),
+     koji tih stranica nema; **zatečeno stanje, ne posljedica prozora**, prod web je Ivanov (deploy-dug #6/#15). Pregled
+     „Webinar” kod organizatora nije provjeren (traži prijavu korisnika i prod web s `/organizator`).
+607. **Predmemorija NAJAVA:** prvih nekoliko minuta nakon prod deploya `/api/*` je vraćao predmemorirani 404 iz NAJAVA
+     (`cache-control: max-age=300`); s cache-busterom 200. Za sljedeći put: provjere nakon izlaska iz NAJAVA s `?x=$RANDOM`.
+608. **Nakon prozora:** `ops-verify` PASS; otisak `pinka_finance` `6/75/139/4/423840d1…` isti od T2; `sponsor-*` cron `succeeded`;
+     jedina nova narudžba u `ulaznice` je staging test (605). Rollback ID-jevi Workera: prod `bdddbaaa` (prije prozora),
+     staging `d5f9335f`; novi prod `ced9eb6f`, staging `70b6e87c`. Promatranje do **2026-12-09** (14 dana), vrata prije S7.
