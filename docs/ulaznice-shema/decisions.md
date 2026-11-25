@@ -101,3 +101,44 @@ Pitanja i posljedice su na vrhu [handoffs/S2.md](handoffs/S2.md).
 114. **S5 radi ova strana** (pitanje 3): grana od `ivan/main` u `domovina-ulaznice`, PR Ivanu, on
      pregledava i deploya Worker. Backend rad na `events-*` i ticketing migracijama zamrzava se od S2
      do S6. Poruku Ivanu šalje korisnik.
+
+## S2 (2026-11-25)
+
+Commitovi `543ec66` (migracije) i `85f3bad` (test, skripta). Migracije `20261125150000_ulaznice_shema`,
+`20261125150100_ulaznice_media_bucket`, `20261125150200_ulaznice_kopija_podataka`.
+
+200. **CHECK-ovi i stupci slijede stvarno stanje `pinka_finance`, ne nacrt §5**, gdje se razlikuju: `currency`
+     default `'eur'`, `quantity > 0` default 1 (granicu 1–10 drži RPC), `reserved` default `false`,
+     `events.account_id` i `orders.event_id` `on delete cascade`, bez CHECK-a `claimed <= total` na tierovima.
+     Svi CHECK-ovi su validni (nova tablica, bez `NOT VALID`).
+201. **`orders.payment_rail` nema default** (u `pinka_finance` je `onchain`). `create_ticket_order` u S3 ga
+     postavlja sam. CHECK: `onchain` samo uz `state='expired'`; `amount_cents > 0 or payment_rail='free'`.
+202. **Mapiranje u kopiji:** 0 € → `free`; `onchain`+`expired` ostaje; `onchain`+`pending` → `stripe`;
+     `funded` → `closed`. Kopija **pada glasno** na: ticket kampanju bez `events` retka, `cancelled`,
+     narudžbu bez tiera, `failed`, plaćenu/refundiranu onchain narudžbu. Prava uplata ne smije tiho nestati.
+203. **`order_events` zadržava izvorne ID-jeve** (`overriding system value`, `on conflict (id)`); sekvence se
+     dižu iznad najvećeg ID-a u obje sheme.
+204. **Kopija je idempotentna ali ne osvježava** već kopirane retke (`on conflict do nothing`). Završna kopija
+     zato mora ići unutar zamrzavanja pisanja u S6 (odluka 112); migracija 150200 to i jest, jer se primjenjuje
+     tek u prozoru.
+205. **`ulaznice.events_write_guard`** (iz `campaigns_write_guard`, bez Safe dijela): za `authenticated` insert
+     forsira skicu i 20 eventa / 24 h, `account_id` nepromjenjiv. Okida se i unutar DEFINER RPC-a
+     (`auth.role()` ostaje `authenticated`), što S3b mora uzeti u obzir. Do S3b admin izravno može postaviti
+     `state='active'` (nema rail gatea); ništa još ne čita `ulaznice`.
+206. **URL-ovi:** `/public/pinka-covers/` → `/public/ulaznice-media/` u `cover_image_url` i svakom `gallery[].url`
+     (pokriva `object` i `render/image`); vanjski URL-ovi se ne diraju.
+207. **„Anon ne čita X” znači bez granta** (42501), ne samo 0 redaka: `orders`, `tickets`, `order_events`,
+     `event_access`, `organizer_*`.
+208. **Storage RLS se testira u SQL-u** insertom u `storage.objects` uz rollback.
+209. **Probni prolaz nad prod podacima:** `pre-migrate-*` backupi iz `db-migrate.sh` su schema-only, pa je
+     S2 povukao read-only dump s podacima (`./scripts/db-dump.sh --schemas pinka_finance --data` →
+     `backups/20261125-145048-pinka_finance-full.sql`, 20 `COPY` blokova) i pustio
+     `scripts/ulaznice-prod-dump-test.sh <dump>`: lokalni reset na `20261125120000`, `COPY` blokovi uz
+     `session_replication_role=replica`, stub `auth.users`/`public.accounts`, tri migracije pa kopija još
+     jednom. Rezultat = inventura: events 4, ticket_tiers 6, orders 3 (paid/stripe 1 = 4000; expired/onchain
+     2 = 6500), tickets 1, event_access 1, organizer_payment_rails 1, organizer_records 0, organizer_allowlist 0,
+     order_events 7; isti ID-jevi; 2 cover + 3 galerija prepisana; `pinka_finance` netaknut. S6 to ponavlja
+     sa svježim dumpom neposredno prije prozora.
+210. **Rujanske migracije uklonjene** iz `supabase/migrations/` i test iz `supabase/tests/` (odluka 111).
+     Izvorni kod za S3/S3b: `git show e77f9ae:supabase/migrations/20260903120000_events_publish_rail_gate.sql`,
+     `…120100_events_rotate_ticket_tokens.sql`, `git show e77f9ae:supabase/tests/20260903_rail_gate_i_rotacija.sql`.

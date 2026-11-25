@@ -27,8 +27,8 @@ iz clipboarda; to znači prvi otvoreni red u „Stanje lanca”.
 | --- | --- | --- | --- | --- | --- |
 | S0 | Plan | gotovo | 3b60081 | — | odluke 1–9 |
 | S1 | Inventura i mapiranje | gotovo | bea1684 | `db reset` ✓; katalog lokalno = prod osim 2 migracije | odluke 100–107; pitanja na vrhu S2.md |
-| S2 | Shema, bucket, kopija podataka | otvoreno | | | vrata prošla (odluke 110–114) |
-| S3 | RPC-i narudžbi i ulaznica | | | | |
+| S2 | Shema, bucket, kopija podataka | gotovo | 543ec66, 85f3bad | `db reset` ✓; `20261125_ulaznice_shema.sql` 45 OK ×2; prod dump 25. 11. = inventura | odluke 200–210 |
+| S3 | RPC-i narudžbi i ulaznica | otvoreno | | | |
 | S3b | RPC-i organizatora i eventa | | | | |
 | S4 | Edge funkcije | | | | paralelno sa S5 |
 | S5 | domovina-ulaznice + runbook | | | | paralelno sa S4; iza S5 vrata |
