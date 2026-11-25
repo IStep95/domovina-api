@@ -24,6 +24,13 @@ import { corsHeaders } from "../_shared/cors.ts";
 // (vrste ulaznica koje je organizator maknuo u editoru); brišu se samo dok je
 // događaj skica, korisnikovim klijentom (RLS `tiers_write`, admin računa).
 // `delete` zove `delete_event_draft` (DEFINER: admin, samo skica bez narudžbi).
+//
+// Besplatni i online (2026-11-25, migracija events_free_online): create i update
+// primaju `attendance_mode` (physical | online; upisuje se uz galeriju) i
+// `online_url` (https, ≤ 1000; `""` briše), koji ide u `event_access` (nije
+// javan; RLS admin računa). Online događaj bez upisanog mjesta/grada dobije
+// „Online” jer su venue_name i venue_city NOT NULL. Besplatan događaj je samo
+// tier s cijenom 0; ovdje za njega nema posebnog polja.
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -68,10 +75,19 @@ Deno.serve(async (req) => {
     return error ? normalizeDbError(error.message) : null;
   };
   const saveMedia = async (campaignId: string, media: Media) => {
-    if (Object.keys(media).length === 0) return null;
-    const { error } = await userClient.schema("pinka_finance").from("events").update(media).eq("campaign_id", campaignId);
+    const { online_url, ...events } = media;
+    const fin = userClient.schema("pinka_finance");
+    if (Object.keys(events).length > 0) {
+      const { error } = await fin.from("events").update(events).eq("campaign_id", campaignId);
+      if (error) return error;
+    }
+    if (online_url === undefined) return null;
+    const { error } = await fin
+      .from("event_access")
+      .upsert({ campaign_id: campaignId, online_url, updated_at: new Date().toISOString() });
     return error;
   };
+  const online = (media: Media) => media.attendance_mode === "online";
 
   switch (action) {
     case "overview": {
@@ -89,8 +105,8 @@ Deno.serve(async (req) => {
         p_account_id: body.account_id,
         p_title: str(body.title),
         p_destination_address: str(body.destination_address).trim() || ZERO_ADDRESS,
-        p_venue_name: str(body.venue_name),
-        p_venue_city: str(body.venue_city),
+        p_venue_name: str(body.venue_name).trim() || (online(media) ? ONLINE : ""),
+        p_venue_city: str(body.venue_city).trim() || (online(media) ? ONLINE : ""),
         p_event_type: str(body.event_type) || "ostalo",
         p_venue_address: opt(body.venue_address),
         p_starts_at: opt(body.starts_at),
@@ -126,9 +142,9 @@ Deno.serve(async (req) => {
         p_title: opt(body.title),
         p_destination_address: opt(body.destination_address),
         p_event_type: opt(body.event_type),
-        p_venue_name: opt(body.venue_name),
+        p_venue_name: opt(body.venue_name) ?? (online(media) ? ONLINE : null),
         p_venue_address: nullable(body.venue_address),
-        p_venue_city: opt(body.venue_city),
+        p_venue_city: opt(body.venue_city) ?? (online(media) ? ONLINE : null),
         p_starts_at: opt(body.starts_at),
         p_ends_at: opt(body.ends_at),
         p_timezone: opt(body.timezone),
@@ -182,11 +198,17 @@ Deno.serve(async (req) => {
   }
 });
 
-// ── galerija ────────────────────────────────────────────────────────────────
+// ── galerija, način održavanja, link ────────────────────────────────────────────────────────────────
 // Ista pravila kao cover_image_url (https, ≤ 1000) i kao check u bazi (≤ 20
 // stavki). Ključ koji nije poslan se ne dira; prazna lista briše.
 
-type Media = { gallery?: Array<{ url: string }> };
+type Media = {
+  gallery?: Array<{ url: string }>;
+  attendance_mode?: "physical" | "online";
+  online_url?: string | null; // ide u event_access, ne u events
+};
+
+const ONLINE = "Online";
 
 const MAX_GALLERY = 20;
 
@@ -201,6 +223,17 @@ function parseMedia(body: Json): Media | { error: string } {
       gallery.push({ url });
     }
     media.gallery = gallery;
+  }
+  if ("attendance_mode" in body && body.attendance_mode !== null) {
+    if (body.attendance_mode !== "physical" && body.attendance_mode !== "online") {
+      return { error: "invalid_attendance_mode" };
+    }
+    media.attendance_mode = body.attendance_mode;
+  }
+  if ("online_url" in body && body.online_url !== null) {
+    const url = str(body.online_url).trim();
+    if (url !== "" && (!/^https:\/\/\S+$/i.test(url) || url.length > 1000)) return { error: "invalid_online_url" };
+    media.online_url = url === "" ? null : url;
   }
   return media;
 }
