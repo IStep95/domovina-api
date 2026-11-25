@@ -4,6 +4,7 @@ Najnoviji deploy na vrhu. Svaki red linka na neovisan milestone (pun snapshot).
 Regresija: `git diff` dva milestone fajla pokazuje delta migracija / image-a / funkcija.
 Vidi [README.md](README.md).
 
+- `2026-11-25T16:37:56Z` · [`1d7a89b`](20261125T163756Z-1d7a89b.md) · main · ops:**PASS** · docs(ulaznice-shema): S6 SQL usporedbe (korak 7)
 - `2026-11-25T11:08:56Z` · [`1564aab`](20261125T110856Z-1564aab.md) · main · ops:**PASS** · Merge pull request #7 from IStep95/events-format
 - `2026-11-25T09:56:02Z` · [`a898454`](20261125T095602Z-a898454.md) · main · ops:**PASS** · Merge pull request #6 from IStep95/events-media
 - `2026-11-23T14:05:48Z` · [`b1272d4`](20261123T140548Z-b1272d4.md) · main · ops:**PASS** · Merge pull request #5 from IStep95/s2b-events-venue-geo
