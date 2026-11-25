@@ -47,6 +47,15 @@
 --   * update_event prima i p_gallery, p_attendance_mode, p_venue_lat,
 --     p_venue_lon, p_cover_image_alt (svi default null = ne diraj), potpis koji
 --     edge zove imenovanim argumentima i dalje vrijedi.
+-- Ispravci bugova originala (odluke 357–361):
+--   * 357 trigger ticket_tiers_write_guard: plaćeni tier (insert ili cijena
+--     0 → > 0) na događaju koji nije skica traži radni Stripe rail;
+--   * 358 rate limit broji i obrisane skice (guard je DEFINER, brisanje je
+--     meko), pa create + delete_event_draft više ne zaobilazi limit;
+--   * 359 isti trigger: izravno brisanje tiera samo na skici (event_not_draft)
+--     i bez narudžbi (tier_has_orders);
+--   * 360 create_event sanitizira opise (ulaznice.sanitize_ugc) kao update_event;
+--   * 361 imenska koja nije boolean → invalid_tier_imenska (bio sirovi 22P02).
 -- =============================================================================
 
 -- ----- event_rail_ready — ima li događaj čime naplatiti ------------------------
@@ -246,6 +255,12 @@ begin
     if v_sale_start is not null and v_sale_end is not null and v_sale_end <= v_sale_start then
       raise exception 'invalid_tier_sale_window';
     end if;
+    -- odluka 361: imenska koja nije boolean → strojni kod (original: sirovi 22P02)
+    begin
+      perform (v_tier->>'imenska')::boolean;
+    exception when others then
+      raise exception 'invalid_tier_imenska';
+    end;
   end loop;
 
   -- ── admin računa + KYC (bila RLS politika campaigns_insert) ─────────────────
@@ -259,7 +274,8 @@ begin
   -- ── idempotencija: retry s istim client-generated id vraća postojeći ───────
   select id, slug into v_existing
   from ulaznice.events
-  where id = p_id and account_id = p_account_id;
+  where id = p_id and account_id = p_account_id
+    and deleted_at is null;  -- kao RLS campaigns_select u originalu: obrisana skica → pkey → campaign_exists
   if found then
     return jsonb_build_object('id', v_existing.id, 'slug', v_existing.slug,
                               'existing', true, 'event_created', false);
@@ -309,12 +325,12 @@ begin
         cover_image_url, organizer_name, organizer_email, organizer_web
       ) values (
         p_id, p_account_id, v_slug, v_title,
-        nullif(btrim(coalesce(p_description_hr, '')), ''),
+        ulaznice.sanitize_ugc(p_description_hr),
         'draft', p_visibility,
         p_event_type, btrim(p_venue_name), nullif(btrim(coalesce(p_venue_address, '')), ''),
         btrim(p_venue_city), p_starts_at, p_ends_at, btrim(p_timezone),
-        nullif(btrim(coalesce(p_description_hr, '')), ''),
-        nullif(btrim(coalesce(p_description_en, '')), ''),
+        ulaznice.sanitize_ugc(p_description_hr),
+        ulaznice.sanitize_ugc(p_description_en),
         p_cover_image_url, coalesce(nullif(btrim(coalesce(p_organizer_name, '')), ''), v_title),
         nullif(btrim(coalesce(p_organizer_email, '')), ''),
         nullif(btrim(coalesce(p_organizer_web, '')), '')
@@ -344,7 +360,7 @@ begin
       event_id, title, description, price_cents, inventory_total,
       imenska, sale_start, sale_end, sort
     ) values (
-      p_id, btrim(v_tier->>'title'), nullif(btrim(coalesce(v_tier->>'description', '')), ''),
+      p_id, btrim(v_tier->>'title'), ulaznice.sanitize_ugc(v_tier->>'description'),
       v_price::integer, v_inventory,
       coalesce((v_tier->>'imenska')::boolean, false),
       (v_tier->>'sale_start')::timestamptz, (v_tier->>'sale_end')::timestamptz,
@@ -429,6 +445,14 @@ begin
     where id = p_campaign_id and deleted_at is null
     for update;
   if not found then raise exception 'campaign_not_found'; end if;
+  -- Original je bio INVOKER: korisnik koji red ne vidi kroz RLS (campaigns_select)
+  -- dobio je campaign_not_found, ne not_authorized. Isto pravilo kao
+  -- events_select, da DEFINER ne otkrije postojanje tuđe skice.
+  if coalesce((select auth.role()), '') = 'authenticated'
+     and not public.is_account_member(v_event.account_id)
+     and not (v_event.visibility in ('public', 'unlisted') and v_event.state in ('active', 'closed')) then
+    raise exception 'campaign_not_found';
+  end if;
   if not public.has_role_on_account(v_event.account_id, 'admin') then
     raise exception 'not_authorized';
   end if;
@@ -566,6 +590,12 @@ begin
       if v_sale_start is not null and v_sale_end is not null and v_sale_end <= v_sale_start then
         raise exception 'invalid_tier_sale_window';
       end if;
+      -- odluka 361: imenska koja nije boolean → strojni kod (original: sirovi 22P02)
+      begin
+        perform (v_tier->>'imenska')::boolean;
+      exception when others then
+        raise exception 'invalid_tier_imenska';
+      end;
 
       v_price := (v_tier->>'price_cents')::integer;
       v_inventory := case
@@ -940,6 +970,75 @@ $$;
 
 revoke execute on function ulaznice.delete_event_draft(uuid) from public, anon;
 grant execute on function ulaznice.delete_event_draft(uuid) to authenticated, service_role;
+
+-- ----- ticket_tiers_write_guard — izravni pisi tierova (odluke 357, 359) --------
+-- Ispravlja dvije rupe originala (u pinka_finance tierove je štitila samo RLS
+-- tiers_write, admin računa, bez obzira na stanje događaja):
+--   357 rail gate: na događaju koji nije skica, novi tier s cijenom > 0 ili
+--       promjena cijene 0 → > 0 traži Stripe Connect koji prima uplate
+--       (inače bi se aktivni „besplatni” događaj bez raila naknadno učinio
+--       plaćenim, mimo publish_event/events_write_guard). Okida se i iz
+--       update_event (DEFINER, auth.role() ostaje 'authenticated').
+--       Promjena već plaćene cijene (> 0 → > 0) ne mijenja potrebu za railom.
+--   359 brisanje: tier se smije obrisati samo na skici (event_not_draft, isti
+--       kod koji edge removeDraftTiers vraća) i samo ako nema narudžbi
+--       (tier_has_orders; bez ovoga FK orders.tier_id baca sirovi 23503).
+--       Kaskadno brisanje cijelog događaja (events_delete, vlasnik) prolazi:
+--       red događaja tada više ne postoji.
+-- service_role / psql (kopija 150200, operater) prolaze netaknuto, kao guard
+-- na events.
+create or replace function ulaznice.ticket_tiers_write_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_state text;
+  v_account uuid;
+begin
+  if coalesce(auth.role(), '') <> 'authenticated' then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+
+  if tg_op = 'DELETE' then
+    select e.state into v_state from ulaznice.events e where e.id = old.event_id;
+    if not found then
+      return old;  -- kaskada iz brisanja događaja
+    end if;
+    if v_state <> 'draft' then
+      raise exception 'event_not_draft';
+    end if;
+    if exists (select 1 from ulaznice.orders o where o.tier_id = old.id) then
+      raise exception 'tier_has_orders';
+    end if;
+    return old;
+  end if;
+
+  if new.price_cents > 0 and (tg_op = 'INSERT' or old.price_cents = 0) then
+    select e.state, e.account_id into v_state, v_account
+      from ulaznice.events e where e.id = new.event_id;
+    if found and v_state <> 'draft' and not exists (
+      select 1 from ulaznice.organizer_payment_rails r
+       where r.account_id = v_account
+         and r.stripe_account_id is not null
+         and r.stripe_charges_enabled
+    ) then
+      raise exception 'event_no_working_rail'
+        using hint = 'Plaćeni tier na objavljenom događaju treba aktivan Stripe račun organizatora.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function ulaznice.ticket_tiers_write_guard() from public, anon, authenticated;
+
+drop trigger if exists trg_ticket_tiers_write_guard on ulaznice.ticket_tiers;
+create trigger trg_ticket_tiers_write_guard
+  before insert or update or delete on ulaznice.ticket_tiers
+  for each row execute function ulaznice.ticket_tiers_write_guard();
 
 -- ----- izravni pisi edge funkcije events-organizer (provjera, bez promjena) ----
 -- Edge danas (index.ts:67-90) korisnikovim klijentom: čita state događaja,
