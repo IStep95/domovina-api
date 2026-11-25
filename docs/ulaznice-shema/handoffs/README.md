@@ -26,7 +26,7 @@ iz clipboarda; to znači prvi otvoreni red u „Stanje lanca”.
 | Sesija | Paket | Stanje | Commit | Testovi | Napomena |
 | --- | --- | --- | --- | --- | --- |
 | S0 | Plan | gotovo | 3b60081 | — | odluke 1–9 |
-| S1 | Inventura i mapiranje | gotovo | (ovaj commit) | `db reset` ✓; katalog lokalno = prod osim 2 migracije | odluke 100–107; pitanja na vrhu S2.md |
+| S1 | Inventura i mapiranje | gotovo | bea1684 | `db reset` ✓; katalog lokalno = prod osim 2 migracije | odluke 100–107; pitanja na vrhu S2.md |
 | S2 | Shema, bucket, kopija podataka | čeka vrata (S1) | | | |
 | S3 | RPC-i narudžbi i ulaznica | | | | |
 | S3b | RPC-i organizatora i eventa | | | | |
