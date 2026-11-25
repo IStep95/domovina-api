@@ -25,7 +25,7 @@ iz clipboarda; to znači prvi otvoreni red u „Stanje lanca”.
 
 | Sesija | Paket | Stanje | Commit | Testovi | Napomena |
 | --- | --- | --- | --- | --- | --- |
-| S0 | Plan | gotovo | (upisuje S0) | — | odluke 1–9 |
+| S0 | Plan | gotovo | 3b60081 | — | odluke 1–9 |
 | S1 | Inventura i mapiranje | otvoreno | | | iza S1 vrata |
 | S2 | Shema, bucket, kopija podataka | čeka vrata | | | |
 | S3 | RPC-i narudžbi i ulaznica | | | | |
