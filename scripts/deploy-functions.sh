@@ -20,6 +20,7 @@
 #   ./scripts/deploy-functions.sh --dry-run       # pokaži što bi se deployalo
 #   ./scripts/deploy-functions.sh --restart -y    # deploy + restart bez prompta
 #   ./scripts/deploy-functions.sh --only=certilia # samo jedna funkcija (+ _shared)
+#   ./scripts/deploy-functions.sh --only=events-feed,events-organizer --restart  # lista sa zarezom
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,6 +48,25 @@ if [ ! -d "$FUNCTIONS_DIR" ]; then
   exit 1
 fi
 
+# --only: lista funkcija odvojena zarezom; svaka mora postojati
+ONLY_LIST=()
+if [ -n "$ONLY" ]; then
+  IFS=',' read -r -a _only_raw <<< "$ONLY"
+  for fn in "${_only_raw[@]}"; do
+    fn="${fn// /}"
+    [ -z "$fn" ] && continue
+    if [ ! -d "$FUNCTIONS_DIR/$fn" ]; then
+      echo "❌ --only: funkcija '$fn' ne postoji u supabase/functions/." >&2
+      exit 1
+    fi
+    ONLY_LIST+=("$fn")
+  done
+  if [ ${#ONLY_LIST[@]} -eq 0 ]; then
+    echo "❌ --only je prazan." >&2
+    exit 1
+  fi
+fi
+
 # Detect edge container
 EDGE=$(ssh_remote "docker ps --format '{{.Names}}' | grep '^supabase-edge-functions-' | head -1")
 if [ -z "$EDGE" ]; then
@@ -58,7 +78,7 @@ echo "→ edge container: $EDGE" >&2
 # Collect files (relativno na FUNCTIONS_DIR). _shared se uvijek uključuje.
 collect() {
   if [ -n "$ONLY" ]; then
-    ( cd "$FUNCTIONS_DIR" && find "$ONLY" _shared -type f 2>/dev/null )
+    ( cd "$FUNCTIONS_DIR" && find "${ONLY_LIST[@]}" _shared -type f )
   else
     ( cd "$FUNCTIONS_DIR" && find . -type f | sed 's|^\./||' )
   fi
