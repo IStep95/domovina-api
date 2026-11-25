@@ -34,6 +34,10 @@ import { corsHeaders } from "../_shared/cors.ts";
 // javan; RLS admin računa; jedini preostali izravni pis uz brisanje tierova). Online događaj bez upisanog mjesta/grada dobije
 // „Online” jer su venue_name i venue_city NOT NULL. Besplatan događaj je samo
 // tier s cijenom 0; ovdje za njega nema posebnog polja.
+//
+// Odobravanje (2026-11-25): `submit` (organizator), `review_queue`, `approve`,
+// `reject` (admin platforme). Skica poslana na odobrenje ima submitted_at;
+// odobrenje je postavi u active + public.
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -184,6 +188,34 @@ Deno.serve(async (req) => {
         p_campaign_id: body.campaign_id,
         p_target_state: target,
       });
+      return respond(data, error);
+    }
+
+    // Odobravanje (2026-11-25, migracija ulaznice_odobrenje): organizator šalje
+    // skicu, admin platforme (ulaznice.platform_admins) je odobri ili vrati.
+    // Ovlasti provjeravaju RPC-i (DEFINER), ne ova funkcija.
+    case "submit": {
+      if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const { data, error } = await rpc("submit_event_for_review", { p_campaign_id: body.campaign_id });
+      return respond(data, error);
+    }
+
+    case "review_queue": {
+      const { data, error } = await rpc("review_queue", {});
+      return respond(data, error);
+    }
+
+    case "approve": {
+      if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const { data, error } = await rpc("approve_event", { p_campaign_id: body.campaign_id });
+      return respond(data, error);
+    }
+
+    case "reject": {
+      if (!UUID_RE.test(str(body.campaign_id))) return json({ error: "invalid_campaign_id" }, 400);
+      const note = opt(body.note);
+      if (note !== null && note.length > 1000) return json({ error: "invalid_review_note" }, 400);
+      const { data, error } = await rpc("reject_event", { p_campaign_id: body.campaign_id, p_note: note });
       return respond(data, error);
     }
 
