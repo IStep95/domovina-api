@@ -6,8 +6,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 // RLS-u, odluka u sesiji" → edge fn, da app ne treba anon key ni PostgREST
 // query jezik, nego jedan GET na isti functions base kao ostale events rute).
 //
-// Vraća SAMO javne podatke: aktivne public kampanje type='tickets' + events
-// detalji + ticket tieri (bez holdera, bez narudžbi). verify_jwt=false.
+// Vraća SAMO javne podatke: aktivne public događaje + detalji + ticket tieri (bez holdera, bez narudžbi). verify_jwt=false.
 //
 // Paginacija/filtriranje (E4): ?grad=<venue_city> (case-insensitive substring),
 // ?from=<ISO>/&to=<ISO> (events.starts_at prozor), ?limit=<1..100> (default 50),
@@ -18,6 +17,13 @@ import { corsHeaders } from "../_shared/cors.ts";
 // Galerija (2026-11-20): event dobiva `gallery` — lista {url, alt}, prazna ako je nema.
 // Besplatni i online (2026-11-25): event dobiva `attendance_mode` (physical | online).
 // Link online događaja (event_access) se ovdje NAMJERNO ne vraća — samo vlasnicima ulaznica.
+//
+// Shema `ulaznice` (S4): jedan red ulaznice.events (id = stari campaign id) nosi
+// i glavu (slug, title, state) i detalje; tieri su ulaznice.ticket_tiers (bez
+// `kind`, svi su ulaznice). Filtar stanja je samo 'active' ('funded' ne
+// postoji, odluka 202). Oblik odgovora je isti: campaign_id, `event` objekt s
+// istim ključevima kao prije embeda, a destination_address je uvijek null
+// (onchain ukinut, odluka 110; ključ ostaje, odluka 3).
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -38,45 +44,38 @@ Deno.serve(async (req) => {
 
   const sb = createClient(URL, SERVICE, { auth: { persistSession: false } });
   let query = sb
-    .schema("pinka_finance")
-    .from("campaigns")
+    .schema("ulaznice")
+    .from("events")
     .select(
-      "id, slug, title, description, destination_address, state, " +
-        "events!inner(event_type, venue_name, venue_address, venue_city, starts_at, ends_at, " +
-        "timezone, description_hr, description_en, cover_image_url, cover_image_alt, gallery, attendance_mode, venue_lat, venue_lon, " +
-        "organizer_name, organizer_email, organizer_web), " +
-        "campaign_tiers(id, title, description, kind, price_cents, inventory_total, inventory_claimed, " +
+      "id, slug, title, state, " + EVENT_COLUMNS.join(", ") + ", " +
+        "ticket_tiers(id, title, description, price_cents, inventory_total, inventory_claimed, " +
         "imenska, sale_start, sale_end, sort)",
     )
-    .eq("type", "tickets")
     .eq("visibility", "public")
-    .in("state", ["active", "funded"])
+    .eq("state", "active")
     .is("deleted_at", null);
 
-  // filtri na embedded events (inner join → filtriraju i parent redove)
-  if (grad !== "") query = query.ilike("events.venue_city", `%${escapeLike(grad)}%`);
-  if (from !== null) query = query.gte("events.starts_at", from);
-  if (to !== null) query = query.lte("events.starts_at", to);
+  if (grad !== "") query = query.ilike("venue_city", `%${escapeLike(grad)}%`);
+  if (from !== null) query = query.gte("starts_at", from);
+  if (to !== null) query = query.lte("starts_at", to);
 
   const { data, error } = await query
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
   if (error) return json({ error: error.message }, 500);
 
-  type CampaignRow = {
+  type EventRow = Record<string, unknown> & {
     id: string;
     slug: string;
     title: string;
     state: string;
-    destination_address: string | null;
-    events: Record<string, unknown> | Record<string, unknown>[] | null;
-    campaign_tiers: Array<Record<string, unknown> & { kind: string; sort: number }> | null;
+    ticket_tiers: Array<Record<string, unknown> & { sort: number }> | null;
   };
 
-  const events = ((data ?? []) as unknown as CampaignRow[]).map((row) => {
-    const ev = Array.isArray(row.events) ? row.events[0] : row.events;
-    const tiers = (row.campaign_tiers ?? [])
-      .filter((t: { kind: string }) => t.kind === "ticket")
+  const events = ((data ?? []) as unknown as EventRow[]).map((row) => {
+    // isti ključevi i redoslijed kao nekadašnji embed events!inner(...)
+    const ev = Object.fromEntries(EVENT_COLUMNS.map((c) => [c, row[c] ?? null]));
+    const tiers = (row.ticket_tiers ?? [])
       .sort((a: { sort: number }, b: { sort: number }) => a.sort - b.sort)
       .map((t: Record<string, unknown>) => ({
         id: t.id,
@@ -94,7 +93,7 @@ Deno.serve(async (req) => {
       slug: row.slug,
       title: row.title,
       state: row.state,
-      destination_address: row.destination_address,
+      destination_address: null,
       event: ev,
       tiers,
     };
@@ -104,6 +103,14 @@ Deno.serve(async (req) => {
 });
 
 const URL2 = globalThis.URL;
+
+// Polja `event` objekta u odgovoru (bivši embed events!inner iz stare sheme).
+const EVENT_COLUMNS = [
+  "event_type", "venue_name", "venue_address", "venue_city", "starts_at", "ends_at",
+  "timezone", "description_hr", "description_en", "cover_image_url", "cover_image_alt",
+  "gallery", "attendance_mode", "venue_lat", "venue_lon",
+  "organizer_name", "organizer_email", "organizer_web",
+];
 
 function parseIso(v: string | null): string | null {
   if (v === null || v.trim() === "") return null;

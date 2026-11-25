@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
   const sb = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
   const { data, error } = await sb
-    .schema("pinka_finance")
+    .schema("ulaznice")
     .rpc("confirm_ticket_order_offchain", {
       p_order_id: orderId,
       p_rail: "stripe",
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
   if (!DELIVERABLE.has(status)) return json({ ok: true, ...result }, 200);
 
   const { data: delivered, error: dErr } = await sb
-    .schema("pinka_finance")
+    .schema("ulaznice")
     .rpc("deliver_ticket_orders", { p_order_ids: [orderId] });
   if (dErr) {
     // narudžba JE plaćena i ulaznice postoje — javi to, dostava se može ponoviti

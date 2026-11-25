@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
   const sb = createClient(URL, SERVICE, { auth: { persistSession: false } });
   const { data, error } = await sb
-    .schema("pinka_finance")
+    .schema("ulaznice")
     .rpc("deliver_ticket_orders", { p_order_ids: orderIds });
   if (error) return json({ error: error.message }, 500);
 

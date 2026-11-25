@@ -8,12 +8,16 @@ import { corsHeaders } from "../_shared/cors.ts";
 // nakon pada mreže vraća postojeću narudžbu) i bearer capability za
 // events-tickets (presedan: pinka contribution_status). Wallet nema Supabase
 // sesiju (self-custody, bez računa) → poziv ide service klijentom s
-// contributor_account_id = null (gost put; isti kao pinka gost doprinosi).
+// buyer_account_id = null (gost put; isti kao pinka gost doprinosi).
 // Ako Authorization header nosi validan GoTrue JWT (pinka SPA), koristi se
 // user klijent pa RPC rezolvira account + KYC snapshot.
 //
-// Novac NIKAD ne prolazi ovuda: vraćamo iznos + organizatorov Safe, plaćanje
-// je P2P EURe transfer u appu; verifikacija = events-confirm. verify_jwt=false.
+// Novac NIKAD ne prolazi ovuda: vraćamo iznos narudžbe, plaćanje ide kroz
+// Stripe (events-stripe-intent / events-stripe-confirm). verify_jwt=false.
+//
+// Shema `ulaznice` (lanac ulaznice-shema, S4): onchain rail je ukinut (odluka
+// 110) — RPC za poslani payer_address baca `onchain_rail_removed` (400), a
+// `destination_address` u odgovoru je uvijek null (ključ ostaje, odluka 3).
 //
 // Besplatna ulaznica (2026-11-25, migracija events_free_online): narudžba od
 // 0 centi se potvrđuje ODMAH, ovdje, kroz confirm_ticket_order_offchain s
@@ -65,7 +69,7 @@ Deno.serve(async (req) => {
   }
 
   const { data, error } = await client
-    .schema("pinka_finance")
+    .schema("ulaznice")
     .rpc("create_ticket_order", {
       p_order_id: body.order_id,
       p_campaign_id: body.campaign_id,
@@ -86,7 +90,7 @@ Deno.serve(async (req) => {
   const buyerEmail = (body.buyer_email ?? "").trim();
   if (buyerEmail.length > 200) return json({ error: "invalid_payer_email" }, 400);
   const service = createClient(URL, SERVICE, { auth: { persistSession: false } });
-  const fin = service.schema("pinka_finance");
+  const fin = service.schema("ulaznice");
   const { data: confirmed, error: cErr } = await fin.rpc("confirm_ticket_order_offchain", {
     p_order_id: body.order_id,
     p_rail: "free",

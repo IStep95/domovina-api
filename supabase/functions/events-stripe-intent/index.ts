@@ -16,6 +16,11 @@ import { SIGNATURE_HEADER, verifyUlazniceSignature } from "../_shared/ulaznice-h
 // verify_jwt=false + HMAC (isti gate kao events-stripe-confirm): poziva ga samo
 // naš Worker. Bez HMAC-a bi svatko tko zna order_id (bearer capability kupca)
 // mogao izvući acct_… organizatora.
+//
+// Shema `ulaznice` (S4): narudžba je ulaznice.orders (event_id umjesto
+// campaign_id), tier ulaznice.ticket_tiers, a glava događaja (title, slug,
+// account_id) i detalji (termin, mjesto) su jedan red ulaznice.events (id =
+// stari campaign id). Odgovor i dalje nosi event.campaign_id.
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,13 +48,13 @@ Deno.serve(async (req) => {
 
   // oportunistički housekeeping (isti obrazac kao create_ticket_order):
   // istekle rezervacije se oslobode prije nego provjerimo stanje narudžbe
-  await sb.schema("pinka_finance").rpc("expire_stale_ticket_orders");
+  await sb.schema("ulaznice").rpc("expire_stale_ticket_orders");
 
   const { data: order, error: oErr } = await sb
-    .schema("pinka_finance")
-    .from("contributions")
+    .schema("ulaznice")
+    .from("orders")
     .select(
-      "id, campaign_id, tier_id, state, amount_cents, currency, quantity, reserved, reserve_expires_at, holders, buyer_email",
+      "id, event_id, tier_id, state, amount_cents, currency, quantity, reserved, reserve_expires_at, holders, buyer_email",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -62,21 +67,20 @@ Deno.serve(async (req) => {
     return json({ error: "order_expired" }, 400);
   }
 
-  const [{ data: tier }, { data: campaign }, { data: event }] = await Promise.all([
-    sb.schema("pinka_finance").from("campaign_tiers")
+  const [{ data: tier }, { data: event }] = await Promise.all([
+    sb.schema("ulaznice").from("ticket_tiers")
       .select("id, title, price_cents, imenska").eq("id", order.tier_id).maybeSingle(),
-    sb.schema("pinka_finance").from("campaigns")
-      .select("id, account_id, title, slug").eq("id", order.campaign_id).maybeSingle(),
-    sb.schema("pinka_finance").from("events")
-      .select("starts_at, ends_at, timezone, venue_name, venue_city").eq("campaign_id", order.campaign_id).maybeSingle(),
+    sb.schema("ulaznice").from("events")
+      .select("id, account_id, title, slug, starts_at, ends_at, timezone, venue_name, venue_city")
+      .eq("id", order.event_id).maybeSingle(),
   ]);
-  if (!tier || !campaign) return json({ error: "order_not_found" }, 404);
+  if (!tier || !event) return json({ error: "order_not_found" }, 404);
 
   const { data: rail } = await sb
-    .schema("pinka_finance")
+    .schema("ulaznice")
     .from("organizer_payment_rails")
     .select("stripe_account_id, stripe_charges_enabled, invoice_provider")
-    .eq("account_id", campaign.account_id)
+    .eq("account_id", event.account_id)
     .maybeSingle();
 
   if (!rail?.stripe_account_id) return json({ error: "organizer_not_connected" }, 400);
@@ -91,14 +95,14 @@ Deno.serve(async (req) => {
     buyer_email: order.buyer_email,
     tier: { id: tier.id, title: tier.title, price_cents: tier.price_cents, imenska: tier.imenska },
     event: {
-      campaign_id: campaign.id,
-      title: campaign.title,
-      slug: campaign.slug,
-      starts_at: event?.starts_at ?? null,
-      ends_at: event?.ends_at ?? null,
-      timezone: event?.timezone ?? null,
-      venue_name: event?.venue_name ?? null,
-      venue_city: event?.venue_city ?? null,
+      campaign_id: event.id,
+      title: event.title,
+      slug: event.slug,
+      starts_at: event.starts_at ?? null,
+      ends_at: event.ends_at ?? null,
+      timezone: event.timezone ?? null,
+      venue_name: event.venue_name ?? null,
+      venue_city: event.venue_city ?? null,
     },
     stripe_account_id: rail.stripe_account_id,
     charges_enabled: rail.stripe_charges_enabled,

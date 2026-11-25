@@ -5,7 +5,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 //
 // Autorizacija je ISKLJUČIVO server-side: pozivatelj mora poslati GoTrue JWT
 // (Authorization header); redeem_ticket RPC dodatno traži
-// has_role_on_account(campaign.account_id, 'admin') — org admin eventa.
+// has_role_on_account(events.account_id, 'admin') — org admin eventa.
 // Klijentski "organizator mod" u walletu je samo UI; bez valjanog JWT-a i
 // admin role sken NE prolazi. RPC se zove USER klijentom (anon key + header)
 // pa auth.uid() u security definer tijelu odgovara skeneru.
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
   if (!TOKEN_RE.test(token)) return json({ error: "invalid_token" }, 400);
 
   const { data, error } = await userClient
-    .schema("pinka_finance")
+    .schema("ulaznice")
     .rpc("redeem_ticket", { p_qr_token: token });
   if (error) {
     const code = normalizeDbError(error.message);
