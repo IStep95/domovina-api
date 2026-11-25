@@ -30,8 +30,8 @@ Legenda: `[x]` gotovo · `[ ]` otvoreno · `[~]` u radu · `(!)` traži korisnik
 
 - [x] 8 funkcija `events-*` čita i piše `ulaznice`; HTTP ugovor nepromijenjen → S4 (`708445c`; iznimka `events-confirm` 410, odluka 400)
 - [x] `docs/events-ticketing-curl-scenario.md` prepisan i prolazi lokalno → S4 (`ee1416d`, `scripts/ulaznice-curl-scenario.sh` 126 provjera)
-- [ ] `domovina-ulaznice` worker i web: `Accept/Content-Profile: ulaznice`, upload u `ulaznice-media`; `npm test` i `web` `npm run check` zeleni → S5
-- [ ] Runbook prebacivanja produkcije (`research/`), s rollbackom → S5
+- [x] `domovina-ulaznice` worker i web: `Accept/Content-Profile: ulaznice`, upload u `ulaznice-media`; `npm test` i `web` `npm run check` zeleni → S5 (`f5e3a40`, draft PR #12)
+- [x] Runbook prebacivanja produkcije (`research/`), s rollbackom → S5 (`2c1d6ae`, `research/2026-11-25-runbook-prebacivanja.md`)
 
 ## F3 — Produkcija
 

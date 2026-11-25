@@ -245,3 +245,31 @@ Provjere: `cd supabase/functions && deno check events-*/index.ts` zelen; `grep -
 408. **Curl scenarij se izvodi skriptom nad `supabase start` funkcijama**, ne `supabase functions serve` (koji bi zamijenio kontejner
      drugim paralelnim sesijama). Tajna iz gitignored `supabase/functions/.env`, skripta je ne ispisuje. Pravi Stripe API
      (PaymentIntent na Connect računu, webhook, povrat, `account.updated`) je ručni korak za S6 (§11.8 scenarija).
+
+## S5 (2026-11-25)
+
+Commitovi `domovina-ulaznice` grana `feat/ulaznice-shema` (od `ivan/main` @3ca4908): `f5e3a40` (Worker, testovi), `747a7d2`
+(deploy-dug #21); draft PR https://github.com/domovinatv/domovina-ulaznice/pull/12. Runbook `2c1d6ae`
+(`research/2026-11-25-runbook-prebacivanja.md`). Provjere u worktreeju `../domovina-ulaznice-shema`: `npm test` 147/147,
+`npm run test:types` čisto, `cd web && npm run check` 0 grešaka, `git grep -n -E "pinka_finance|pinka-covers" -- worker worker-tests web/src src mobile shared` prazan.
+
+500. **PR ide u `domovinatv/domovina-ulaznice` (base `main`), ne u `IStep95`.** IStep95 je fork bez prava pisanja za nas
+     (`gh repo view … viewerPermission` = READ), a svi dosadašnji PR-ovi (#7–#11) su u `domovinatv`. `origin/main` = `ivan/main`
+     (3ca4908), pa je grana i dalje „od `ivan/main`” (odluka 114). PR je **draft** s upozorenjem „ne mergeati ni deployati
+     prije S6”: staging i produkcija dijele jezgru, pa bi Worker bez `ulaznice` u `PGRST_DB_SCHEMAS` dobivao 406 i na stagingu.
+501. **Worker zadržava svoj JSON (`campaign_id`)** prema webu i mobileu; `event_id` iz `ulaznice` mapira se natrag. Web i mobile
+     se ne mijenjaju funkcionalno (samo komentari), pa web ne treba deploy u prozoru.
+502. **Uklonjen Workerov fallback za jezgru bez `events_free_online`** (deploy-dug #18): `ulaznice` uvijek ima `attendance_mode`
+     i `event_access`. Greška jezgre sad daje 502 nakon jednog pokušaja.
+503. **Harness `worker-tests` odbija svaki `/rest/v1/` poziv bez profila `ulaznice`** (s `pinka_finance` pada 34 testa).
+504. **Odluka 405 ostaje:** `create_event` bez prava i dalje 400 `{"error":"new"…}` → Worker 403 `nema_prava_kreiranja`. Ugovor
+     se ne mijenja (ni jedna strana); čisti 403 kandidat je za poslije S7.
+505. **Zamrzavanje pisanja u S6 je trigger, ne `revoke`** (zamjenjuje način iz odluke 4 i S5.md). Ticketing RPC-i su
+     `security definer` (vlasnik `postgres`), pa ih `revoke` ne zaustavlja, a `campaigns`/`campaign_tiers`/`contributions`/
+     `contribution_events` dijele donacije. Trigger na dijeljenim tablicama odbija samo retke kampanja `type='tickets'`;
+     jednokratni SQL, ne migracija, pa ga S7 prvo uklanja. Runbook §2.
+506. **Pojedinačna migracija na produkciju ide pomoćnom funkcijom `prod_migracija` iz runbooka** (isti obrazac kao `db-migrate.sh`:
+     `begin`, datoteka, red u `supabase_migrations.schema_migrations`, `commit`, uz zaštitu od dvostruke primjene), jer
+     `db-migrate.sh` nema opciju za jednu migraciju. `--dry-run` mora pokazati točno pet migracija `20261125150000`–`170000`.
+507. **Kopija slika `pinka-covers` → `ulaznice-media` kroz Storage API service ključem na hostu**; podrška za
+     `destinationBucket` u `/object/copy` (storage-api v1.44.2) nije potvrđena iz repoa, rezerva je preuzmi + upload (runbook §4).
