@@ -64,4 +64,5 @@ mjeri S1 (broj RPC-a i redaka po skupini); ako jest, S1 ga dijeli prije vrata.
 
 ## Gdje smo
 
-S0 (2026-11-25): plan napisan, koda nema. Sljedeće: S1.
+S0 (2026-11-25): plan napisan, koda nema.
+S1 (2026-11-25): inventura u `research/2026-11-25-inventura.md` (odluke 100–107). Migracije = produkcija osim dviju iz 9/2026; podjela S3/S3b ostaje. Sljedeće: **vrata nakon S1** (5 pitanja na vrhu `handoffs/S2.md`), pa S2.

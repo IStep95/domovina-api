@@ -9,12 +9,12 @@ Legenda: `[x]` gotovo · `[ ]` otvoreno · `[~]` u radu · `(!)` traži korisnik
 
 ## F0 — Inventura i odluke (ništa se ne mijenja)
 
-- [ ] Popis svih objekata u `pinka_finance` koje ticketing koristi: tablice, kolone, ograničenja, trigeri, RLS politike, grantovi, RPC-i, viewovi (`campaign_stats`…), pg_cron poslovi (`expire_stale_ticket_orders`?) → S1
-- [ ] Popis svih potrošača: 8 funkcija `events-*`, `pinka-*` grane za `type='tickets'`, `domovina-ulaznice` (worker, web, mobile, worker-tests), `safe-wallet-monorepo/apps/mobile/src/custom/events`, `campaign-core`, `crowdfund.domovina.ai` → S1
-- [ ] Gdje se ID-jevi narudžbi/kampanja zapisuju izvan baze (Stripe metadata, QR, mailovi, D1 u Workeru, linkovi) → S1
-- [ ] Stanje produkcije naredbom: broj eventa, tiera, narudžbi po railu, ulaznica, objekata u `pinka-covers` po vlasniku → S1
-- [ ] Tablica mapiranja staro → novo (tablica, kolona, RPC) i popis onoga što ostaje u `pinka_finance` → S1
-- [ ] (!) Korisnik odlučio: onchain rail za ulaznice (prenijeti / ukinuti), dvije neprimijenjene migracije iz 9/2026, dogovor s Ivanom o zamrzavanju backend rada na `events-*` → vrata nakon S1
+- [x] Popis svih objekata u `pinka_finance` koje ticketing koristi: tablice, kolone, ograničenja, trigeri, RLS politike, grantovi, RPC-i, viewovi (`campaign_stats`…), pg_cron poslovi (`expire_stale_ticket_orders`?) → S1
+- [x] Popis svih potrošača: 8 funkcija `events-*`, `pinka-*` grane za `type='tickets'`, `domovina-ulaznice` (worker, web, mobile, worker-tests), `safe-wallet-monorepo/apps/mobile/src/custom/events`, `campaign-core`, `crowdfund.domovina.ai` → S1
+- [x] Gdje se ID-jevi narudžbi/kampanja zapisuju izvan baze (Stripe metadata, QR, mailovi, D1 u Workeru, linkovi) → S1
+- [x] Stanje produkcije naredbom: broj eventa, tiera, narudžbi po railu, ulaznica, objekata u `pinka-covers` po vlasniku → S1
+- [x] Tablica mapiranja staro → novo (tablica, kolona, RPC) i popis onoga što ostaje u `pinka_finance` → S1
+- [ ] (!) Korisnik odlučio: onchain rail za ulaznice (prenijeti / ukinuti), dvije neprimijenjene migracije iz 9/2026, dogovor s Ivanom o zamrzavanju backend rada na `events-*` → vrata nakon S1 (pitanja na vrhu `handoffs/S2.md`)
 
 ## F1 — Nova shema lokalno
 

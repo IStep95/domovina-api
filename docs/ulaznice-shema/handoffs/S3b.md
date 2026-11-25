@@ -8,7 +8,9 @@ Pročitaj prvo: docs/ulaznice-shema/handoffs/README.md (lanac i pravila), docs/u
 
 Polazni commit: (upisuje S3). Provjera: (upisuje S3). Odluke od **350**.
 
-Paket (popis iz inventure S1; okvirno): `create_event`, `update_event`, `publish_event`, `delete_event_draft`, `organizer_overview`, `upsert_organizer_record`, `event_rail_ready`, `events_gallery_valid`, allowlist i payment rails; feed/view za `events-feed`.
+Iz S1 (inventura §4.5, §8): skupina B je 6 RPC-a / 630 redaka. `create_event` i `update_event` su danas INVOKER bez `search_path`, a `create_event` zove `pinka_finance.create_campaign` i prolazi `campaigns_write_guard` (KYC, rate limit 20/24 h, prisilni draft, Safe gate). U `ulaznice` to postaje DEFINER sa `search_path=''` i vlastitom provjerom (bez `create_campaign`). `events-organizer` piše `gallery`, `attendance_mode`, `venue_lat/lon`, `cover_image_alt` izravno u tablicu i radi upsert `event_access` mimo RPC-a (`events-organizer/index.ts:74-87`): RLS `events_write`/`event_access_admin` mora to i dalje dopuštati. Rail gate u `publish_event` po odgovoru s vrata nakon S1.
+
+Paket (popis): `create_event`, `update_event`, `publish_event`, `delete_event_draft`, `organizer_overview`, `upsert_organizer_record`, `event_rail_ready`, `events_gallery_valid`, allowlist i payment rails; feed/view za `events-feed`.
 
 1. Port u `ulaznice` po istim pravilima kao S3 (imena, potpisi, JSON, RLS).
 2. Testovi: kreiranje skice, uređivanje, galerija, online događaj (`attendance_mode`, `event_access`), objava (rail gate), brisanje skice; organizator bez prava dobiva istu grešku kao danas.
