@@ -35,7 +35,7 @@ Legenda: `[x]` gotovo · `[ ]` otvoreno · `[~]` u radu · `(!)` traži korisnik
 
 ## F3 — Produkcija
 
-- [ ] (!) Korisnik odobrio prebacivanje → vrata prije S6
+- [x] (!) Korisnik odobrio prebacivanje → vrata prije S6 (odluke 590–594)
 - [ ] Backup, zamrzavanje pisanja u stare tablice, migracije pojedinačno, `PGRST_DB_SCHEMAS` + `ulaznice`, deploy funkcija, ops-verify, journal → S6
 - [ ] Worker ulaznica deployan (staging pa prod) i smoke test prošao → S6
 

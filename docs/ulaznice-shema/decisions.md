@@ -273,3 +273,17 @@ Commitovi `domovina-ulaznice` grana `feat/ulaznice-shema` (od `ivan/main` @3ca49
      `db-migrate.sh` nema opciju za jednu migraciju. `--dry-run` mora pokazati točno pet migracija `20261125150000`–`170000`.
 507. **Kopija slika `pinka-covers` → `ulaznice-media` kroz Storage API service ključem na hostu**; podrška za
      `destinationBucket` u `/object/copy` (storage-api v1.44.2) nije potvrđena iz repoa, rezerva je preuzmi + upload (runbook §4).
+
+## Vrata prije S6 (2026-11-25, odgovori korisnika)
+
+Pitanja su na vrhu [handoffs/S6.md](handoffs/S6.md).
+
+590. **Prebacivanje produkcije odobreno** (pitanje 1). Termin: kad S6 krene, uz provjeru iz runbooka §0 da nema prodaje u
+     tijeku (žive `pending`+`reserved` narudžbe = 0).
+591. **Worker deploya ova strana (S6), ne Ivan** (pitanje 2; mijenja dio odluke 114 o deployu). Deploy s grane
+     `feat/ulaznice-shema` (worktree `domovina-ulaznice-shema`), `CLOUDFLARE_ACCOUNT_ID` D.O.M.-a, staging pa prod (runbook §9).
+     PR #12 ostaje Ivanu na pregled i merge nakon prozora; korisnik mu javlja.
+592. **Prod Worker je u `NAJAVA` načinu za vrijeme prozora** (pitanje 3, runbook §2.3); izlazi iz njega prod deployem u §9.
+593. **Plaćena narudžba u smoke testu samo na stagingu** (pitanje 4); na produkciji besplatna/Webinar, preuzimanje postojeće
+     plaćene ulaznice i donacije.
+594. **Inventar se prenosi kako jest** (pitanje 5, odluka 309): bez normalizacije, nema koraka 3.3a.
