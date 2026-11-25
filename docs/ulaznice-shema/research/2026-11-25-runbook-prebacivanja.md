@@ -43,7 +43,8 @@ W=backups/s6-$(date -u +%Y%m%d)        # radna mapa: backups/ je gitignoran
 mkdir -p "$W"
 
 # SQL datoteka → produkcija (obrazac iz handoffs/README.md; stdin ide kroz bash -c u ssh)
-prod_sql() { bash -c '. scripts/lib/db-env.sh; C=$(detect_db_container); ssh_remote "docker exec -i $C psql -U $COOLIFY_DB_USER -d $COOLIFY_DB_NAME -X -v ON_ERROR_STOP=1"' < "$1"; }
+# (S6: `</dev/null` je nužan: detect_db_container zove ssh koji bi inače pojeo SQL sa stdina, psql dobije prazno)
+prod_sql() { bash -c '. scripts/lib/db-env.sh; C=$(detect_db_container </dev/null); ssh_remote "docker exec -i $C psql -U $COOLIFY_DB_USER -d $COOLIFY_DB_NAME -X -v ON_ERROR_STOP=1"' < "$1"; }
 
 # JEDNA migracija točno kao db-migrate.sh (begin; datoteka; red u schema_migrations; commit),
 # uz zaštitu da već primijenjena ne ide dvaput
