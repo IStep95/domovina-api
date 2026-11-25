@@ -67,3 +67,4 @@ mjeri S1 (broj RPC-a i redaka po skupini); ako jest, S1 ga dijeli prije vrata.
 S0 (2026-11-25): plan napisan, koda nema.
 S1 (2026-11-25): inventura u `research/2026-11-25-inventura.md` (odluke 100–107). Migracije = produkcija osim dviju iz 9/2026; podjela S3/S3b ostaje. Vrata nakon S1 prošla isti dan (odluke 110–114). Sljedeće: S2.
 S2 (2026-11-25): shema `ulaznice`, bucket `ulaznice-media` i kopija podataka (`543ec66`), test 45 provjera i probni prolaz nad pravim prod dumpom (`85f3bad`); brojevi = inventura (odluke 200–210). Sljedeće: S3.
+S3 (2026-11-25): RPC-i narudžbi i ulaznica, trigger inventara i `rotate_ticket_tokens` u `ulaznice` (`20261125160000`); test starog ponašanja 218 i isti scenariji nad `ulaznice` 246, grane kopije 9; ispravljen bug dvostrukog inventara (odluke 300–309). Sljedeće: S3b.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Ulaznice S2: probni prolaz migracija 20261125150000/150100/150200 nad podacima
+# Ulaznice S2/S3: probni prolaz migracija 20261125150000/150100/150200/160000 nad podacima
 # pinka_finance, LOKALNO (docs/ulaznice-shema/, docs/migration-testing-playbook.md).
 #
 # Ne radi ništa prema produkciji: nema ssh-a, nema remote psql-a, čita samo
@@ -59,7 +59,7 @@ PSQL=(psql "$DB_URL" -X -q -v ON_ERROR_STOP=1)
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 MIG="$REPO_ROOT/supabase/migrations"
-NOVE=(20261125150000_ulaznice_shema 20261125150100_ulaznice_media_bucket 20261125150200_ulaznice_kopija_podataka)
+NOVE=(20261125150000_ulaznice_shema 20261125150100_ulaznice_media_bucket 20261125150200_ulaznice_kopija_podataka 20261125160000_ulaznice_rpc_narudzbe)
 
 echo "→ 1. supabase db reset --no-seed --version 20261125120000"
 (cd "$REPO_ROOT" && supabase db reset --no-seed --version 20261125120000 >"$TMP/reset.log" 2>&1) || {

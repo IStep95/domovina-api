@@ -142,3 +142,38 @@ Commitovi `543ec66` (migracije) i `85f3bad` (test, skripta). Migracije `20261125
 210. **Rujanske migracije uklonjene** iz `supabase/migrations/` i test iz `supabase/tests/` (odluka 111).
      Izvorni kod za S3/S3b: `git show e77f9ae:supabase/migrations/20260903120000_events_publish_rail_gate.sql`,
      `…120100_events_rotate_ticket_tokens.sql`, `git show e77f9ae:supabase/tests/20260903_rail_gate_i_rotacija.sql`.
+
+## S3 (2026-11-25)
+
+Migracija `20261125160000_ulaznice_rpc_narudzbe.sql`; testovi `20261125_ulaznice_rpc_narudzbe_staro.sql` (218, ponašanje
+`pinka_finance`), `20261125_ulaznice_rpc_narudzbe.sql` (246, isti scenariji nad `ulaznice`, svaka razlika označena
+`-- RAZLIKA (odluka 30x)`), `20261125_ulaznice_kopija_greske.sql` (9, grane kopije koje padaju, dug iz S2).
+
+300. **`p_payer_address` ostaje u potpisu `create_ticket_order`** (odluka 3), ali ne-null vrijednost baca `onchain_rail_removed`
+     (umjesto `invalid_payer_address`). `destination_address` u odgovoru create i `tx_hash` u `deliver_ticket_orders` ostaju
+     ključevi s `null`.
+301. **`create_ticket_order` sam postavlja rail**: `free` za 0 €, inače `stripe`. Otpadaju `campaign_not_tickets` i
+     `tier_not_ticket` (u `ulaznice` je sve ulaznica; donacijski ID daje `campaign_not_found`). Rate limit 10/h samo po
+     `buyer_account_id` (bez Safe/payer grane).
+302. **`confirm_ticket_order_offchain` s railom `stripe` na narudžbi od 0 € baca `invalid_rail`.** Original je to puštao;
+     ovdje bi palo na CHECK `orders_amount_free`.
+303. **Ispravljen bug dvostrukog brojanja inventara.** U `pinka_finance` potvrda istekle narudžbe (expired→paid) rezervira
+     +quantity u RPC-u (korak 5) i još jednom u `tg_contribution_state`; test starog ponašanja to bilježi (claimed 3→5
+     umjesto 4). `ulaznice.tg_order_state` nema tu granu; ponovnu rezervaciju radi samo confirm, uz provjeru kapaciteta.
+     Posljedica: izravan `update … set state='paid'` istekle narudžbe kao `service_role` ne rezervira inventar (nitko to ne
+     radi). Bug je živ na produkciji do S6; ne popravlja se u `pinka_finance` (odluka 1, S7 ga briše).
+304. **Audit događaji zadržavaju imena `contribution.<state>` i ključ `other_contribution_id`** (kopirana povijest ima ista
+     imena; Worker/edge ih ne čitaju po imenu). Payload `expired` bez `tx_hash`.
+305. **`list_my_tickets` vraća iste ključeve** (`contribution_id`, `campaign_id`, `campaign_title`), odluka 3.
+306. **Refund ne piše `campaign_stats`; `void_ticket` i dalje ne vraća inventar** (kao original). Ostala čudna ponašanja
+     originala zadržana i označena u testu: refund `voided` 0 pa 1 kod `already_refunded`, idempotentni create vraća
+     postojeću narudžbu i uz drukčije parametre, `p_amount_cents` refunda se samo zapisuje.
+307. **Advisory lock serijskog broja**: ključ `'ulaznice_tickets_' || event_id`.
+308. **`contribution.created` audit piše `create_ticket_order` izravno, ne trigger.** Trigger na insert u `ulaznice.orders`
+     trošio je sekvencu `order_events` i sudarao se s kopiranom poviješću (odluka 203). Svaki budući put koji kreira
+     narudžbu (S3b nadalje) mora sam upisati taj redak.
+309. **Prod podaci imaju nekonzistentan inventar, kopija ga prenosi vjerno** (`scripts/ulaznice-prod-dump-test.sh
+     backups/20261125-145048-pinka_finance-full.sql`, pa upit `inventory_claimed` vs `sum(quantity) filter (where reserved)`):
+     dvije istekle onchain narudžbe imaju `reserved=true`, tier `9940f…` ima `inventory_claimed=10/10` bez ijedne narudžbe,
+     tier `58a12…` claimed 1 uz 1 plaćenu (točno). Migracija to ne normalizira; S6 odlučuje uz svježi dump (pitanje na
+     vrhu S6.md).

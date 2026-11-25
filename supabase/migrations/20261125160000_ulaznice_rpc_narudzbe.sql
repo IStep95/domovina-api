@@ -15,6 +15,8 @@
 --                                                       (nikad primijenjen na pinka_finance; odluka 111)
 --   tg_order_state                                      reserved grane iz tg_contribution_state (pinka_finance),
 --                                                       20260722120000_pinka_slots.sql:841-888
+--   audit 'contribution.created'                        tg_contribution_created (trigger), 20260530120300_pinka_finance_rpcs.sql:159;
+--                                                       ovdje izravno u create_ticket_order, v. komentar tamo
 --
 -- Mapiranje (odluke 100, 113): campaigns+events → events; campaign_tiers →
 -- ticket_tiers; contributions → orders; contribution_events → order_events;
@@ -114,6 +116,7 @@ drop trigger if exists trg_order_state on ulaznice.orders;
 create trigger trg_order_state
   after update of state on ulaznice.orders
   for each row execute function ulaznice.tg_order_state();
+
 
 -- ----- create_ticket_order (narudžba + rezervacija) ---------------------------
 -- p_order_id je client-generated random UUID: idempotency ključ i bearer
@@ -257,6 +260,15 @@ begin
     case when v_amount = 0 then 'free' else 'stripe' end,
     coalesce(v_verified, false), v_holders, true, v_expires
   );
+
+  -- audit 'contribution.created' (u pinka_finance trigger tg_contribution_created
+  -- na insert). Namjerno NIJE trigger na ulaznice.orders: kopija 20261125150200
+  -- (i S2 test koji je ponovno izvodi) insertira narudžbe s povijesti iz
+  -- contribution_events, pa bi trigger dodao duple zapise i uzeo id-jeve iz
+  -- sekvence koji se sudaraju s kopiranima (on conflict do nothing → gubitak).
+  insert into ulaznice.order_events (order_id, event_id, event_type, payload)
+  values (p_order_id, p_campaign_id, 'contribution.created',
+          jsonb_build_object('amount_cents', v_amount, 'tier_id', p_tier_id, 'quantity', p_quantity));
 
   return jsonb_build_object(
     'order_id', p_order_id,
