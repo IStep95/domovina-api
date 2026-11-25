@@ -30,8 +30,8 @@ iz clipboarda; to znači prvi otvoreni red u „Stanje lanca”.
 | S2 | Shema, bucket, kopija podataka | gotovo | 543ec66, 85f3bad | `db reset` ✓; `20261125_ulaznice_shema.sql` 45 OK ×2; prod dump 25. 11. = inventura | odluke 200–210 |
 | S3 | RPC-i narudžbi i ulaznica | gotovo | 5a5c3b2, 32dc2b8 | `db reset` ✓; testovi 45/218/246/9 ✓; prod dump ✓ | odluke 300–309 |
 | S3b | RPC-i organizatora i eventa | gotovo | b9bfbad, 007d65b | `db reset` ✓; testovi 45/218/246/9/213/251 ✓; prod dump ✓ | odluke 350–361 |
-| S4 | Edge funkcije | otvoreno | | | paralelno sa S5 |
-| S5 | domovina-ulaznice + runbook | | | | paralelno sa S4; iza S5 vrata |
+| S4 | Edge funkcije | gotovo | 708445c, ee1416d | `deno check` ✓; grep `pinka_finance` prazan; `scripts/ulaznice-curl-scenario.sh` 126 ✓ ×2 | odluke 400–408; Stripe API ručno u S6 |
+| S5 | domovina-ulaznice + runbook | otvoreno | | | iza S5 vrata |
 | S6 | Prebacivanje produkcije | čeka vrata | | | |
 | S7 | Brisanje starog | čeka vrata | | | |
 

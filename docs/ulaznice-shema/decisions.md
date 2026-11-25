@@ -219,3 +219,29 @@ Migracija `20261125170000_ulaznice_rpc_eventi.sql` (commitovi `b9bfbad`, `007d65
 Zadržana „čudna” ponašanja originala (označena `-- ČUDNO:` u oba testa): validacija prije provjere prava, termin u prošlosti u
 `update_event`, KYC samo kod kreiranja, `javascript:` URL u galeriji kroz izravni pis, `organizer_overview` bez novih polja.
 `create_event` nakon brisanja s istim id-em i dalje daje `campaign_exists` (idempotencija gleda `deleted_at is null`).
+
+## S4 (2026-11-25)
+
+Commitovi `708445c` (funkcije, runbook `research/2026-11-25-pgrst-db-schemas.md`) i `ee1416d` (scenarij + `scripts/ulaznice-curl-scenario.sh`).
+Provjere: `cd supabase/functions && deno check events-*/index.ts` zelen; `grep -rn pinka_finance supabase/functions/events-*` prazan;
+`bash scripts/ulaznice-curl-scenario.sh` 126 `OK —`, „SVE PROVJERE PROŠLE”, dva prolaza zaredom.
+
+400. **`events-confirm` je stub: svaki POST → 410 `{"error":"onchain_rail_removed"}`** (OPTIONS/405 isti). Jedina namjerna promjena HTTP
+     ugovora (odluka 110 je ukinula rail); isti kod kao `create_ticket_order` s `p_payer_address`. Funkcija se briše u S7.
+401. **`events-organizer`: `gallery` i `attendance_mode` idu kroz `update_event` (`p_gallery`, `p_attendance_mode`)**, ne izravnim pisom u
+     `events`. Update je jedan atomaran poziv; create radi drugi poziv `update_event` samo kad su polja poslana. Preostali izravni
+     pisovi: `event_access` upsert i brisanje tierova skice (RLS iz S2).
+402. **Koordinate i `cover_image_alt` se ne šalju** — HTTP ugovor organizatora ih nikad nije primao, pa problem brisanja koordinata
+     (`update_event` koalescira null) ne nastaje.
+403. **`removeDraftTiers` zadržava čitanje stanja prije brisanja** (nevidljiv event → `campaign_not_found`, ne tiho 0 redaka; 409 prije pisa).
+     `tier_has_orders` iz triggera izlazi kao 400.
+404. **`ZERO_ADDRESS` se i dalje šalje kao `p_destination_address`**; RPC ga odbacuje (odluka 351).
+405. **`create_event` bez prava ostaje 400 `{"error":"new"…}`** (Worker `api.ts:558` to mapira na 403). Čisti 403 `not_authorized`
+     mijenja ugovor; prijedlog za S5 zajedno s Workerom, ne mijenja se u S4 (odluka 3).
+406. **`online_url` kupcu i dalje daje samo Worker** (service ključem iz `ulaznice.event_access`); backend ga ne vraća ni u `events-tickets`.
+     Revizija: ako mobilna aplikacija treba link bez Workera.
+407. **Create s galerijom/`online_url` nije atomaran** (create_event, update_event, upsert `event_access` — tri poziva; kao i prije S4).
+     Kandidat: `p_online_url` u `update_event`. Ne radi se sada.
+408. **Curl scenarij se izvodi skriptom nad `supabase start` funkcijama**, ne `supabase functions serve` (koji bi zamijenio kontejner
+     drugim paralelnim sesijama). Tajna iz gitignored `supabase/functions/.env`, skripta je ne ispisuje. Pravi Stripe API
+     (PaymentIntent na Connect računu, webhook, povrat, `account.updated`) je ručni korak za S6 (§11.8 scenarija).

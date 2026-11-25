@@ -70,3 +70,5 @@ S2 (2026-11-25): shema `ulaznice`, bucket `ulaznice-media` i kopija podataka (`5
 S3 (2026-11-25): RPC-i narudžbi i ulaznica, trigger inventara i `rotate_ticket_tokens` u `ulaznice` (`20261125160000`); test starog ponašanja 218 i isti scenariji nad `ulaznice` 246, grane kopije 9; ispravljen bug dvostrukog inventara (odluke 300–309). Sljedeće: S3b.
 
 S3b (2026-11-25): RPC-i organizatora i eventa s rail gateom u `ulaznice` (`20261125170000`); test starog ponašanja 213 i isti scenariji nad `ulaznice` 251; rail gate i na tierovima nakon objave, ispravljeni bugovi allowliste, brisanja tiera, sanitizacije i `imenska` (odluke 350–361). Sljedeće: S4 (S5 paralelno).
+
+S4 (2026-11-25): 8 funkcija `events-*` na `ulaznice` (`708445c`), curl scenarij prepisan i izvršna skripta `scripts/ulaznice-curl-scenario.sh` 126 provjera (`ee1416d`), runbook `PGRST_DB_SCHEMAS` u `research/2026-11-25-pgrst-db-schemas.md` (odluke 400–408). Sljedeće: S5.
