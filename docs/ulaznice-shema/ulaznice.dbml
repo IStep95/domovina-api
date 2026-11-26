@@ -1,8 +1,9 @@
-// Shema `ulaznice` u Supabaseu na api.domovina.ai kao DBML (stanje 2026-11-25, nakon S6 lanca i odobravanja događaja).
+// Shema `ulaznice` u Supabaseu na api.domovina.ai kao DBML (stanje 2026-11-26, nakon S6 lanca, odobravanja događaja i odgovora kupaca).
 //
 // Izvor istine su migracije 20261125150000_ulaznice_shema (tablice, RLS, trigeri),
 // 20261125150100_ulaznice_media_bucket, 20261125160000_ulaznice_rpc_narudzbe i
-// 20261125170000_ulaznice_rpc_eventi (RPC-i) i 20261125180000_ulaznice_odobrenje (odobravanje događaja). Ovaj DBML je pogled na njih: promjena sheme
+// 20261125170000_ulaznice_rpc_eventi (RPC-i) 20261125180000_ulaznice_odobrenje (odobravanje događaja) i
+// 20261126120000_ulaznice_odgovori_kupaca (odgovori na dodatna polja). Ovaj DBML je pogled na njih: promjena sheme
 // ide u novu migraciju i ovdje u istom commitu.
 //
 // Prikaz: https://stepanic.github.io/open-diagram/?url=https://github.com/domovinatv/domovina-api/blob/main/docs/ulaznice-shema/ulaznice.dbml
@@ -196,6 +197,22 @@ Table ulaznice.order_events [headercolor: #059669, note: 'Append-only audit naru
   }
 }
 
+Table ulaznice.order_answers [headercolor: #059669, note: 'Odgovori kupca na dodatna polja (Google obrazac organizatora). Moguće posebne kategorije podataka (čl. 9 GDPR-a): čita samo admin računa događaja. Pisanje samo service_role: save_order_answers, mark_order_answers_forwarded; red za slanje order_answers_to_forward; rok čuvanja purge_order_answers (neplaćena > 24 h, 90 dana nakon kraja događaja)'] {
+  order_id uuid [pk, ref: - ulaznice.orders.id, note: 'jedan red po narudžbi; on delete cascade']
+  event_id uuid [not null, ref: > ulaznice.events.id, note: 'on delete cascade']
+  answers jsonb [not null, note: 'polje s tekstom pitanja i odgovorom, ≤ 100 stavki, ≤ 64 KB']
+  form_url text [note: 'https://docs.google.com/forms/d/e/…/viewform; null = samo kod nas']
+  forwarded_at timestamptz [note: 'null = još nije proslijeđeno u obrazac']
+  forward_attempts integer [not null, default: 0, note: 'red odustaje nakon 20 pokušaja']
+  forward_error text [note: '≤ 200 znakova; briše se nakon uspjeha']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    event_id [name: 'ix_order_answers_event']
+    created_at [name: 'ix_order_answers_to_forward', note: 'where forwarded_at is null and form_url is not null']
+  }
+}
+
 // =====================================================================================
 // Organizator
 // =====================================================================================
@@ -254,10 +271,11 @@ TableGroup dogadjaj [color: #7c3aed, note: 'Događaj, vrste ulaznica, link onlin
   ulaznice.event_access
 }
 
-TableGroup narudzba [color: #059669, note: 'Kupnja, izdane ulaznice, audit'] {
+TableGroup narudzba [color: #059669, note: 'Kupnja, izdane ulaznice, audit, odgovori kupca'] {
   ulaznice.orders
   ulaznice.tickets
   ulaznice.order_events
+  ulaznice.order_answers
 }
 
 TableGroup organizator [color: #ea580c, note: 'Tko smije objaviti (allowlist ili odobrenje admina), DAC7, Stripe Connect'] {
